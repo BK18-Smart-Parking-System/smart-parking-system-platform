@@ -1,7 +1,8 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Đây là file schema của Prisma
+// Tìm hiểu thêm: https://pris.ly/d/prisma-schema
+// File này định nghĩa cấu trúc DB và cách Prisma tương tác với DB đó
+// Mình xài Supabase (PostgreSQL) nên provider là postgresql
+// Client sẽ được generate ra ở thư mục ../generated/prisma để mình có thể import vào code và dùng để query DB
 
 generator client {
   provider = "prisma-client"
