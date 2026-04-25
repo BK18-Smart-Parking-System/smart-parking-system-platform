@@ -1,29 +1,58 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { User } from './interfaces/user.interface';
+import { PrismaService } from '../prisma/prisma.service';
+import { contains } from 'class-validator';
 
 @Injectable()
 export class UsersService {
-  findAll(): User[] {
-    return [{id: 100, username: "Alice", email: "alice@example.com", role: "user", createdAt: new Date()}, {id: 200, username: "Bob", email: "bob@example.com", role: "user", createdAt: new Date()}, {id: 300, username: "Charlie", email: "charlie@example.com", role: "admin", createdAt: new Date()}];
+  constructor(private prisma: PrismaService) {}
+
+  // Tìm người dùng theo username hoặc trả về tất cả người dùng nếu không có query
+  async findUsers(username?: string) {
+    // Nếu có query username, tìm user theo username
+    if (username) {
+      const user = await this.prisma.user.findUnique({
+        where: { username },
+        include: { cards: true },
+      });
+
+      if (!user) {
+        throw new NotFoundException(`Không tìm thấy user với username '${username}'`);
+      }
+
+      return user;
+    }
+    // Nếu không có query username, trả về tất cả người dùng (có thể thêm phân trang sau)
+    const users = await this.prisma.user.findMany({
+      include: { cards: true },
+    });
+
+    if (users.length === 0) {
+      throw new NotFoundException('Không tìm thấy user nào');
+    }
+
+    return users;
   }
 
-  findOne(id: string): User {
-    const user = this.findAll().find(user => user.id === parseInt(id));
+  // Tìm người dùng theo MSSV
+  async findById(id: string) {
+    const user = await this.prisma.user.findUnique({
+        where: { universityId : id },
+        include: { cards: true } // Lấy kèm thông tin thẻ định danh nếu cần
+      });
+    
     if (!user) {
-      throw new NotFoundException(`User with id ${id} not found`);
+      throw new NotFoundException(`Không tìm thấy user với id ${id}`);
     }
+
     return user;
   }
 
-  create(createUserDto: any): User {
-    // Giả sử service tạo một người dùng mới và trả về đối tượng User
-    const newUser: User = {
-      id: Math.floor(Math.random() * 1000), // Tạo ID ngẫu nhiên cho ví dụ
-      username: createUserDto.username,
-      email: createUserDto.email,
-      role: createUserDto.role,
-      createdAt: new Date(),
-    };
-    return newUser;
+  // Lấy thông tin nợ của người dùng
+  async getDebtStatus(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { debtAmount: true, dueDate: true }
+    });
+    return user;
   }
 }
