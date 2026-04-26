@@ -1,5 +1,6 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Role } from '../../generated/prisma';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -13,7 +14,7 @@ export class AuthService {
   ) {}
 
   /**
-   * Đăng ký tài khoản mới (Hỗ trợ giả lập SSO)
+   * Đăng ký tài khoản mới
    */
   async register(dto: CreateUserDto) {
     // 1. Kiểm tra sự tồn tại của Email hoặc Username
@@ -21,7 +22,8 @@ export class AuthService {
       where: {
         OR: [
           { email: dto.email },
-          { username: dto.username }
+          { username: dto.username },
+          { universityId: dto.universityId }
         ],
       },
     });
@@ -30,26 +32,37 @@ export class AuthService {
       throw new ConflictException('Email hoặc Tên đăng nhập đã được sử dụng trong hệ thống');
     }
 
-    // 2. Mã hóa mật khẩu (Bắt buộc cho tài khoản thông thường)
+    // 2. Chỉ được là role STUDENT/STAFF (sinh viên hoặc cán bộ)
+    const allowedRoles: Role[] = [Role.STUDENT, Role.STAFF];
+
+    if (!allowedRoles.includes(dto.role)) {
+      throw new BadRequestException('Role không hợp lệ');
+    }
+
+    // 3. Băm mật khẩu
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(dto.password, salt);
 
-    // 3. Tạo User trong Database (Prisma Generated Client)
+    // 4. Tạo User trong Database
     const newUser = await this.prisma.user.create({
       data: {
         username: dto.username,
         email: dto.email,
         password: hashedPassword,
         fullName: dto.fullName,
-        universityId: dto.universityId || null, // Giả lập SSO: có thể không có universityId ban đầu
+        universityId: dto.universityId || null,
         role: dto.role,
         debtAmount: dto.debtAmount || 0,
         dueDate: dto.dueDate || null,
       },
     });
 
-    // 4. Trả về thông tin an toàn (loại bỏ password)
+    // 5. Trả về thông tin an toàn (bỏ password)
     const { password, ...result } = newUser;
+
+    // Thêm message để frontend biết đăng ký thành công
+    result['message'] = 'Đăng ký thành công';
+
     return result;
   }
 

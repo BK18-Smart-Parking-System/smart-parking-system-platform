@@ -33,7 +33,7 @@ export class CreateUserDto {
   @IsString({ message: 'Họ và tên phải là chuỗi ký tự' })
   fullName!: string;
 
-  @IsEnum(Role, { message: 'Quyền hạn không hợp lệ. Phải thuộc: ADMIN, STUDENT, STAFF, GUEST' })
+  @IsEnum(Role)
   role!: Role;
 
   // Quản lý công nợ (Optional khi tạo mới)
