@@ -1,4 +1,8 @@
-// Cấu hình schema cho DB
+// Đây là file schema của Prisma
+// Tìm hiểu thêm: https://pris.ly/d/prisma-schema
+// File này định nghĩa cấu trúc DB và cách Prisma tương tác với DB đó
+// Mình xài Supabase (PostgreSQL) nên provider là postgresql
+// Client sẽ được generate ra ở thư mục ../generated/prisma để mình có thể import vào code và dùng để query DB
 
 generator client {
   provider = "prisma-client-js"
@@ -9,131 +13,173 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id           String               @id @default(uuid()) @db.Uuid
-  universityId String?              @unique
-  username     String               @unique
-  email        String               @unique
-  password     String
-  fullName     String
-  role         Role                 @default(STUDENT)
-  debtAmount   Float                @default(0)
-  dueDate      DateTime?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  payments     PaymentTransaction[]
-  cards        RfidCard[]
-}
-
-model RfidCard {
-  id          String           @id @default(uuid()) @db.Uuid
-  uid         String           @unique
-  status      CardStatus       @default(ACTIVE)
-  isGuestCard Boolean          @default(false)
-  userId      String?          @db.Uuid
-  sessions    ParkingSession[]
-  user        User?            @relation(fields: [userId], references: [id])
-}
-
-model ParkingZone {
-  id               String           @id @default(uuid()) @db.Uuid
-  code             String           @unique
-  name             String
-  capacity         Int
-  currentOccupancy Int              @default(0)
-  allowedRoles     Role[]
-  sessions         ParkingSession[]
-  slots            ParkingSlot[]
-}
-
-model ParkingSlot {
-  id          String      @id @default(uuid()) @db.Uuid
-  zoneId      String      @db.Uuid
-  sensorCode  String      @unique
-  status      SlotStatus  @default(EMPTY)
-  lastUpdated DateTime    @default(now())
-  zone        ParkingZone @relation(fields: [zoneId], references: [id])
-}
-
-model PricingPolicy {
-  id            String    @id @default(uuid()) @db.Uuid
-  role          Role
-  basePrice     Float
-  effectiveFrom DateTime
-  effectiveTo   DateTime?
-  createdAt     DateTime  @default(now())
-}
-
-model ParkingSession {
-  id              String              @id @default(uuid()) @db.Uuid
-  cardId          String              @db.Uuid
-  zoneId          String?             @db.Uuid
-  checkinTime     DateTime            @default(now())
-  licensePlateIn  String?
-  imageInUrl      String?
-  checkoutTime    DateTime?
-  licensePlateOut String?
-  imageOutUrl     String?
-  status          SessionStatus       @default(INITIATED)
-  calculatedFee   Float               @default(0)
-  paymentId       String?             @db.Uuid
-  card            RfidCard            @relation(fields: [cardId], references: [id])
-  payment         PaymentTransaction? @relation(fields: [paymentId], references: [id])
-  zone            ParkingZone?        @relation(fields: [zoneId], references: [id])
-}
-
-model PaymentTransaction {
-  id        String           @id @default(uuid()) @db.Uuid
-  userId    String?          @db.Uuid
-  amount    Float
-  status    PaymentStatus    @default(PENDING)
-  method    PaymentMethod
-  qrCodeUrl String?
-  dueDate   DateTime?
-  paidAt    DateTime?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  sessions  ParkingSession[]
-  user      User?            @relation(fields: [userId], references: [id])
-}
+// ------------------------------------------------------
+// ENUMS (Các hằng số trạng thái)
+// ------------------------------------------------------
 
 enum Role {
-  ADMIN
-  STUDENT
-  STAFF
-  GUEST
-  OPERATOR
+  ADMIN       // Quản trị viên
+  OPERATOR    // Nhân viên vận hành (quản lý bãi, hỗ trợ khách)
+  STUDENT     // Sinh viên
+  STAFF       // Cán bộ / Giảng viên
+  GUEST       // Khách vãng lai (Dùng cho các thẻ tạm)
 }
 
 enum CardStatus {
-  ACTIVE
-  TEMP_LOCKED
-  LOCKED
+  ACTIVE      // Hợp lệ
+  TEMP_LOCKED // Khóa tạm thời (do nợ cước)
+  LOCKED      // Khóa vĩnh viễn (mất thẻ, ra trường)
 }
 
 enum SessionStatus {
-  INITIATED
-  PARKING
-  CLOSED
-  PENDING_PAYMENT
-  PAID
-  ANOMALOUS
+  INITIATED       // Khởi tạo (Mới quẹt thẻ vào)
+  PARKING         // Đang đỗ (Xe đã qua barie vào bãi)
+  CLOSED          // Đã đóng (Xe đã ra khỏi bãi, chờ tổng hợp phí)
+  PENDING_PAYMENT // Chờ thanh toán (Đã lên bill)
+  PAID            // Đã thanh toán
+  ANOMALOUS       // Đóng bất thường (Quá hạn, lỗi hệ thống)
 }
 
 enum SlotStatus {
-  EMPTY
-  OCCUPIED
-  UNKNOWN
+  EMPTY       // Trống
+  OCCUPIED    // Có xe
+  UNKNOWN     // Mất kết nối cảm biến
 }
 
 enum PaymentStatus {
-  PENDING
-  SUCCESS
-  FAILED
-  TIMEOUT
+  PENDING     // Đang chờ thanh toán
+  SUCCESS     // Thành công
+  FAILED      // Thất bại
+  TIMEOUT     // Quá hạn thanh toán
 }
 
 enum PaymentMethod {
-  BKPAY_QR
-  CASH
+  BKPAY_QR    // Thanh toán qua QR / BKPay (SV, CB)
+  CASH        // Tiền mặt (Khách vãng lai)
+}
+
+// ------------------------------------------------------
+// MODELS (Các bảng dữ liệu)
+// ------------------------------------------------------
+
+// 1. Quản lý Người dùng (Đồng bộ từ HCMUT_DATACORE)
+model User {
+  id             String    @id @default(uuid()) @db.Uuid
+  universityId   String?   @unique // Mã số sinh viên / Mã cán bộ
+  username       String    @unique // Dùng cho đăng nhập Admin/Operator
+  email          String    @unique
+  password       String    
+  fullName       String
+  role           Role      @default(STUDENT)
+  
+  // Quản lý công nợ
+  debtAmount     Float     @default(0)    // Số tiền còn nợ
+  dueDate        DateTime?                // Kỳ hạn thanh toán nợ
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Quan hệ
+  cards          RfidCard[]
+  payments       PaymentTransaction[]
+}
+
+// 2. Quản lý Thẻ định danh / Vé xe
+model RfidCard {
+  id          String     @id @default(uuid()) @db.Uuid
+  uid         String     @unique // Mã chip thực tế trên thẻ RFID
+  status      CardStatus @default(ACTIVE)
+  isGuestCard Boolean    @default(false) // True nếu là thẻ nhựa cấp tạm cho khách
+  
+  userId      String?    @db.Uuid // Null nếu là thẻ khách vãng lai
+  user        User?      @relation(fields: [userId], references: [id])
+
+  sessions    ParkingSession[]
+}
+
+// 3. Quản lý Khu vực đỗ xe (Zone)
+model ParkingZone {
+  id               String   @id @default(uuid()) @db.Uuid
+  code             String   @unique // VD: "ZONE_A", "ZONE_B"
+  name             String   // "Khu vực gần cổng chính"
+  capacity         Int      // Sức chứa tối đa của bãi đỗ xe
+  currentOccupancy Int      @default(0) // Số xe đang đỗ hiện tại (tính toán ngầm)
+  
+  // Phân quyền: Mảng các Role được phép đỗ ở khu vực này (PostgreSQL array)
+  allowedRoles     Role[]   
+
+  slots            ParkingSlot[]
+  sessions         ParkingSession[]
+}
+
+// 4. Quản lý Ô đỗ xe (IoT Sensors)
+model ParkingSlot {
+  id          String     @id @default(uuid()) @db.Uuid
+  zoneId      String     @db.Uuid
+  zone        ParkingZone @relation(fields: [zoneId], references: [id])
+  
+  sensorCode  String     @unique // Mã MAC hoặc ID của cảm biến IoT
+  status      SlotStatus @default(EMPTY)
+  lastUpdated DateTime   @default(now())
+}
+
+// 5. Cấu hình Chính sách giá (Rules Engine)
+model PricingPolicy {
+  id            String   @id @default(uuid()) @db.Uuid
+  role          Role     // Chính sách áp dụng cho Role nào
+  basePrice     Float    // Giá cơ bản (VD: 3000 VNĐ)
+  
+  effectiveFrom DateTime // Ngày bắt đầu hiệu lực
+  effectiveTo   DateTime?// Ngày hết hiệu lực (Null = đang áp dụng)
+  
+  createdAt     DateTime @default(now())
+}
+
+// 6. Quản lý Phiên gửi xe (Session cốt lõi)
+model ParkingSession {
+  id               String        @id @default(uuid()) @db.Uuid
+  cardId           String        @db.Uuid
+  card             RfidCard      @relation(fields: [cardId], references: [id])
+  
+  zoneId           String?       @db.Uuid // Ghi nhận xe đỗ ở khu vực nào (nếu tích hợp sâu)
+  zone             ParkingZone?   @relation(fields: [zoneId], references: [id])
+
+  // Dữ liệu lúc vào
+  checkinTime      DateTime      @default(now())
+  licensePlateIn   String?       // OCR nhận diện biển số lúc vào
+  imageInUrl       String?       // Link ảnh camera lúc vào
+
+  // Dữ liệu lúc ra
+  checkoutTime     DateTime?
+  licensePlateOut  String?       // OCR nhận diện biển số lúc ra
+  imageOutUrl      String?       // Link ảnh camera lúc ra
+
+  status           SessionStatus @default(INITIATED)
+  
+  // Tài chính của riêng phiên này
+  calculatedFee    Float         @default(0) // basePrice * (ngày ra - ngày vào + 1)
+  
+  paymentId        String?       @db.Uuid
+  payment          PaymentTransaction? @relation(fields: [paymentId], references: [id])
+}
+
+// 7. Quản lý Giao dịch & Hóa đơn
+model PaymentTransaction {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String?       @db.Uuid // Có thể null nếu là khách vãng lai thanh toán tiền mặt
+  user           User?         @relation(fields: [userId], references: [id])
+  
+  amount         Float         // Tổng số tiền cần thanh toán
+  status         PaymentStatus @default(PENDING)
+  method         PaymentMethod // BKPAY_QR hoặc CASH
+  
+  qrCodeUrl      String?       // Link lưu mã QR được sinh ra cho đợt thanh toán này
+  dueDate        DateTime?     // Hạn chót thanh toán (dành cho SV/CB)
+  paidAt         DateTime?     // Thời điểm thanh toán thành công
+  
+  // Một giao dịch (đặc biệt của SV/CB cuối tháng) có thể thanh toán cho nhiều phiên gửi xe
+  sessions       ParkingSession[] 
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
