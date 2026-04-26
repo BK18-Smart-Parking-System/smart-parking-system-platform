@@ -381,11 +381,14 @@ function OperatorDashboard() {
 }
 
 function StudentDashboard() {
+  const fullName = localStorage.getItem("fullName") || "Nguyễn Văn A";
+  const universityId = localStorage.getItem("universityId") || "2011234";
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-gray-900 mb-2">Xin chào, Nguyễn Văn A</h1>
-        <p className="text-gray-600">MSSV: 2011234 - Khoa Khoa học & Kỹ thuật Máy tính</p>
+        <h1 className="text-gray-900 mb-2">Xin chào, {fullName}</h1>
+        <p className="text-gray-600">MSSV: {universityId} - Khoa Khoa học & Kỹ thuật Máy tính</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -24,6 +24,9 @@ export default function Home() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setActiveTab("dashboard");
+    localStorage.removeItem("token");
+    localStorage.removeItem("fullName");
+    localStorage.removeItem("universityId");
   };
 
   if (!isLoggedIn) {
@@ -40,7 +43,7 @@ export default function Home() {
       />
       <main className="flex-1 overflow-y-auto">
         <div className="p-8">
-          {/* Mỗi tab là 1 component (trang theo dõi) -> gọi api hay gì thì làm trong component đó */}
+          {/* Mỗi tab là 1 component -> gọi api hay gì thì làm trong component đó */}
           {activeTab === "dashboard" && <Dashboard userRole={userRole} />}
           {activeTab === "entry-exit" && <EntryExit />}
           {activeTab === "parking-slots" && <ParkingSlots />}
