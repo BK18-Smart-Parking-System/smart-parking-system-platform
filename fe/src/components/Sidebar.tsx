@@ -49,13 +49,13 @@ const menuItems: MenuItem[] = [
     id: "payment",
     label: "Thanh toán",
     icon: <CreditCard className="w-5 h-5" />,
-    roles: ["admin", "operator"],
+    roles: ["admin", "operator", "student"],
   },
   {
     id: "history",
     label: "Lịch sử giao dịch",
     icon: <FileText className="w-5 h-5" />,
-    roles: ["admin", "operator"],
+    roles: ["admin", "operator", "student"],
   },
   {
     id: "reports",
