@@ -19,17 +19,6 @@ export default function Home() {
   const { setUserRole } = useRole();
   const [activeTab, setActiveTab] = useState("dashboard");
 
-  const clearRefreshToken = async () => {
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, {
-        method: "POST",
-        credentials: "include", // gửi cookie để xóa refresh token
-      });
-    } catch (err) {
-      console.error("Đăng xuất thất bại", err);
-    }
-  };
-
   // Khi mở web, refresh lại token mới để giữ login
   useEffect(() => {
     const initAuth = async () => {
@@ -74,18 +63,24 @@ export default function Home() {
     setIsLoggedIn(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+  try {
+    // Xóa refreshToken ở server
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include", // Quan trọng: Để gửi cookie đi và nhận lệnh xóa cookie về
+    });
+  } catch (err) {
+    console.error("Logout API failed", err);
+  } finally {
+    // Luôn xóa mấy cái này
     setIsLoggedIn(false);
     setActiveTab("dashboard");
-
-    // Xóa token
     clearAccessToken();
-    clearRefreshToken();
-
-    // Xóa thông tin người dùng khỏi localStorage
     localStorage.removeItem("fullName");
     localStorage.removeItem("universityId");
-  };
+  }
+};
 
   // Hiệu ứng load khi đang kiểm tra token
   if (isLoading) {
