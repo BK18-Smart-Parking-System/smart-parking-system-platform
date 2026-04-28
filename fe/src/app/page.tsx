@@ -1,5 +1,6 @@
 'use client';
 import { useState } from "react";
+import { useRole } from "../contexts/RoleContext";
 import { LoginPage } from "../components/LoginPage";
 import { Sidebar } from "../components/Sidebar";
 import { Dashboard } from "../components/Dashboard";
@@ -13,7 +14,7 @@ import { Settings } from "../components/Settings";
 
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState<string>("student");
+  const { setUserRole } = useRole();
   const [activeTab, setActiveTab] = useState("dashboard");
 
   const handleLogin = (role: string) => {
@@ -39,15 +40,14 @@ export default function Home() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onLogout={handleLogout}
-        userRole={userRole}
       />
       <main className="flex-1 overflow-y-auto">
         <div className="p-8">
           {/* Mỗi tab là 1 component -> gọi api hay gì thì làm trong component đó */}
-          {activeTab === "dashboard" && <Dashboard userRole={userRole} />}
+          {activeTab === "dashboard" && <Dashboard />}
           {activeTab === "entry-exit" && <EntryExit />}
           {activeTab === "parking-slots" && <ParkingSlots />}
-          {activeTab === "payment" && <Payment userRole={userRole} />}
+          {activeTab === "payment" && <Payment />}
           {activeTab === "history" && <History />}
           {activeTab === "reports" && <Reports />}
           {activeTab === "permissions" && <Permissions />}

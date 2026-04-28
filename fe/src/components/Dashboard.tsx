@@ -11,6 +11,7 @@ import {
   Activity,
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { useRole } from "../contexts/RoleContext";
 
 const weekData = [
   { day: "T2", entries: 145, exits: 142 },
@@ -550,7 +551,9 @@ function StudentDashboard() {
   );
 }
 
-export function Dashboard({ userRole }: { userRole: string }) {
+export function Dashboard() {
+  const { userRole } = useRole();
+
   if (userRole === "admin") {
     return <AdminDashboard />;
   }

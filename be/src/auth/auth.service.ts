@@ -11,7 +11,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-  ) {}
+  ) { }
 
   /**
    * Đăng ký tài khoản mới
@@ -82,15 +82,16 @@ export class AuthService {
 
     // 3. So sánh mật khẩu băm
     const isMatch = await bcrypt.compare(dto.password, user.password);
+
     if (!isMatch) {
       throw new UnauthorizedException('Mật khẩu không chính xác');
     }
 
     // 4. Tạo Payload cho JWT (Chứa thông tin định danh và phân quyền)
-    const payload = { 
-      sub: user.id, 
-      username: user.username, 
-      role: user.role 
+    const payload = {
+      sub: user.id,
+      username: user.username,
+      role: user.role
     };
 
     return {

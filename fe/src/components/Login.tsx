@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { SquareParking } from "lucide-react";
+import { parseJwt } from "../contexts/RoleContext";
 
 type LoginProps = {
   onBack: () => void;
@@ -22,14 +23,25 @@ export function Login({ onBack, onLogin }: LoginProps) {
     .then((data) => {
       if (data.access_token) {
         localStorage.setItem("token", data.access_token);
-        localStorage.setItem("fullName", data.user.fullName);
-        localStorage.setItem("universityId", data.user.universityId);
-        switch (data.user.role) {
+        
+        // Giải mã JWT để lấy role thực tế thay vì phụ thuộc vào data.user
+        const decoded = parseJwt(data.access_token);
+        const resolvedRole = decoded?.role || data.user?.role || "STUDENT";
+        
+        if (data.user) {
+          localStorage.setItem("fullName", data.user.fullName || "");
+          localStorage.setItem("universityId", data.user.universityId || "");
+        }
+
+        switch (resolvedRole.toUpperCase()) {
           case "ADMIN":
             onLogin("admin");
             break;
           case "OPERATOR":
             onLogin("operator");
+            break;
+          case "GUEST":
+            onLogin("guest");
             break;
           default:
             onLogin("student");

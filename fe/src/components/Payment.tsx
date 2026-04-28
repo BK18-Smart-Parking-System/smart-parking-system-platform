@@ -1,4 +1,5 @@
 import { CreditCard, CheckCircle, Clock, AlertTriangle } from "lucide-react";
+import { useRole } from "../contexts/RoleContext";
 
 type Payment = {
   id: string;
@@ -64,7 +65,9 @@ const mockPayments: Payment[] = [
   },
 ];
 
-export function Payment({ userRole }: { userRole: string }) {
+export function Payment() {
+  const { userRole } = useRole();
+
   const totalRevenue = mockPayments
     .filter(p => p.status === "paid")
     .reduce((sum, p) => sum + p.amount, 0);
