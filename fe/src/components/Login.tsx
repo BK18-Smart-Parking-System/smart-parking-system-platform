@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { SquareParking } from "lucide-react";
 import { parseJwt } from "../contexts/RoleContext";
+import { setAccessToken } from "@/lib/token";
 
 type LoginProps = {
   onBack: () => void;
@@ -11,45 +12,57 @@ export function Login({ onBack, onLogin }: LoginProps) {
 	const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = () => {
-		fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({ username, password }),
-		})
-    .then((res) => res.json())
-    .then((data) => {
-      if (data.access_token) {
-        localStorage.setItem("token", data.access_token);
-        
-        // Giải mã JWT để lấy role thực tế thay vì phụ thuộc vào data.user
-        const decoded = parseJwt(data.access_token);
-        const resolvedRole = decoded?.role || data.user?.role || "STUDENT";
-        
-        if (data.user) {
-          localStorage.setItem("fullName", data.user.fullName || "");
-          localStorage.setItem("universityId", data.user.universityId || "");
+  const handleLogin = async () => {
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
+        {
+          method: "POST",
+          credentials: "include", // để gửi cookie (refresh token)
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ username, password }),
         }
+      );
 
-        switch (resolvedRole.toUpperCase()) {
-          case "ADMIN":
-            onLogin("admin");
-            break;
-          case "OPERATOR":
-            onLogin("operator");
-            break;
-          case "GUEST":
-            onLogin("guest");
-            break;
-          default:
-            onLogin("student");
-        }
-      } else {
+      const data = await res.json();
+
+      if (!data.access_token) {
         alert("Đăng nhập thất bại!");
+        return;
       }
-    })
+
+      // lưu accessToken vào memory
+      setAccessToken(data.access_token);
+
+      // decode role
+      const decoded = parseJwt(data.access_token);
+      const resolvedRole =
+        decoded?.role || data.user?.role || "STUDENT";
+
+      if (data.user) {
+        localStorage.setItem("fullName", data.user.fullName || "");
+        localStorage.setItem("universityId", data.user.universityId || "");
+      }
+
+      switch (resolvedRole.toUpperCase()) {
+        case "ADMIN":
+          onLogin("admin");
+          break;
+        case "OPERATOR":
+          onLogin("operator");
+          break;
+        case "GUEST":
+          onLogin("guest");
+          break;
+        default:
+          onLogin("student");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Lỗi kết nối server!");
+    }
   };
 
   return (

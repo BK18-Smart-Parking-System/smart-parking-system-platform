@@ -1,4 +1,4 @@
-import { Camera, CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
+import { Camera, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 
 type EntryExitRecord = {
@@ -14,7 +14,7 @@ type EntryExitRecord = {
 
 const mockRecords: EntryExitRecord[] = [
   {
-    id: "1",
+    id: "-1",
     time: "09:15:23",
     plate: "51F-12345",
     type: "entry",
@@ -23,7 +23,7 @@ const mockRecords: EntryExitRecord[] = [
     status: "success",
   },
   {
-    id: "2",
+    id: "-2",
     time: "09:12:45",
     plate: "59A-67890",
     type: "exit",
@@ -32,7 +32,7 @@ const mockRecords: EntryExitRecord[] = [
     status: "success",
   },
   {
-    id: "3",
+    id: "-3",
     time: "09:08:12",
     plate: "30H-11111",
     type: "entry",
@@ -41,7 +41,7 @@ const mockRecords: EntryExitRecord[] = [
     status: "pending",
   },
   {
-    id: "4",
+    id: "-4",
     time: "09:05:34",
     plate: "51F-22222",
     type: "exit",
@@ -50,7 +50,7 @@ const mockRecords: EntryExitRecord[] = [
     status: "success",
   },
   {
-    id: "5",
+    id: "-5",
     time: "09:02:56",
     plate: "Không đọc được",
     type: "entry",
@@ -62,19 +62,52 @@ const mockRecords: EntryExitRecord[] = [
 
 export function EntryExit() {
   const [filter, setFilter] = useState<"all" | "entry" | "exit">("all");
+  const [records, setRecords] = useState<EntryExitRecord[]>(mockRecords);
 
-  const filteredRecords = mockRecords.filter((record) => {
+  const filteredRecords = records.filter((record) => {
     if (filter === "all") return true;
     return record.type === filter;
   });
 
+  const createMockData = () => {
+    const newRecord: EntryExitRecord = {
+      id: (records.length + 1).toString(),
+      time: new Date().toLocaleTimeString(),
+      plate: `${Math.floor(Math.random() * 100 + 10)}F-${Math.floor(10000 + Math.random() * 90000)}`,
+      type: "entry",
+      cardId: Math.random().toString(36).substring(2, 12),
+      userName: `Người dùng ${records.length + 1}`,
+      status: "success",
+    };
+    setRecords((prev) => [newRecord, ...prev]);
+  }
+
+  const deleteMockData = (id: string) => {
+    setRecords((prev) => {
+      const index = prev.findIndex(record => record.id === id);
+      if (index !== -1) {
+        const updated = [...prev];
+        updated.splice(index, 1);
+        return updated;
+      }
+      return prev;
+    });
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-gray-900 mb-2">Quản lý xe ra/vào</h1>
-        <p className="text-gray-600">
-          Theo dõi và kiểm soát luồng xe ra vào bãi đỗ
-        </p>
+      <div className="flex items-center mb-4">
+        <div>
+          <h1 className="text-gray-900 mb-2">Quản lý xe ra/vào</h1>
+          <p className="text-gray-600">
+            Theo dõi và kiểm soát luồng xe ra vào bãi đỗ
+          </p>
+        </div>
+        <button
+          onClick={() => createMockData()} 
+          className="ml-auto bg-blue-600 hover:bg-blue-700 hover:cursor-pointer text-white py-2 px-4 rounded-lg transition-colors">
+          Thêm xe vào
+        </button>
       </div>
 
       <div className="bg-white rounded-xl p-6 border border-gray-200">
@@ -168,6 +201,14 @@ export function EntryExit() {
                     <button className="flex items-center gap-1 text-blue-600 hover:text-blue-700">
                       <Camera className="w-4 h-4" />
                       Xem
+                    </button>
+                  </td>
+                  <td className="py-4 px-4">
+                    <button
+                      onClick={() => deleteMockData(record.id)}
+                      className="text-red-600 hover:text-red-700 hover:cursor-pointer"
+                    >
+                      Xóa xe
                     </button>
                   </td>
                 </tr>
