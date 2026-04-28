@@ -11,6 +11,7 @@ import {
   Activity,
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { StudentDashboardConnected } from "./StudentDashboard";
 
 const weekData = [
   { day: "T2", entries: 145, exits: 142 },
@@ -380,7 +381,7 @@ function OperatorDashboard() {
   );
 }
 
-function StudentDashboard() {
+function LegacyStudentDashboard() {
   const fullName = localStorage.getItem("fullName") || "Nguyễn Văn A";
   const universityId = localStorage.getItem("universityId") || "2011234";
 
@@ -559,5 +560,6 @@ export function Dashboard({ userRole }: { userRole: string }) {
     return <OperatorDashboard />;
   }
 
-  return <StudentDashboard />;
+  return <StudentDashboardConnected />;
 }
+

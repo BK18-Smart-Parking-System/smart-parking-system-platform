@@ -1,71 +1,224 @@
-import { Camera, CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, CheckCircle, Clock, FileText } from "lucide-react";
+import { useEffect, useState } from "react";
 
-type EntryExitRecord = {
+const API_BASE_URL_CANDIDATES = [
+  process.env.NEXT_PUBLIC_API_URL,
+  "http://localhost:8081",
+  "http://localhost:8080",
+].filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
+
+type ParkingSession = {
   id: string;
-  time: string;
-  plate: string;
-  type: "entry" | "exit";
-  cardId: string;
-  userName: string;
-  status: "success" | "pending" | "error";
-  image?: string;
+  status: string;
+  checkinTime: string;
+  checkoutTime: string | null;
+  licensePlateIn: string | null;
+  licensePlateOut: string | null;
+  calculatedFee: number;
+  rfidCard: {
+    id: string;
+    uid: string;
+    status: string;
+    user: {
+      id: string;
+      username: string;
+      fullName: string;
+      universityId: string | null;
+      role: string;
+    } | null;
+  };
+  zone: {
+    id: string;
+    code: string;
+    name: string;
+  } | null;
 };
 
-const mockRecords: EntryExitRecord[] = [
-  {
-    id: "1",
-    time: "09:15:23",
-    plate: "51F-12345",
-    type: "entry",
-    cardId: "1234567890",
-    userName: "Nguyễn Văn A",
-    status: "success",
-  },
-  {
-    id: "2",
-    time: "09:12:45",
-    plate: "59A-67890",
-    type: "exit",
-    cardId: "0987654321",
-    userName: "Trần Thị B",
-    status: "success",
-  },
-  {
-    id: "3",
-    time: "09:08:12",
-    plate: "30H-11111",
-    type: "entry",
-    cardId: "1111111111",
-    userName: "Lê Văn C",
-    status: "pending",
-  },
-  {
-    id: "4",
-    time: "09:05:34",
-    plate: "51F-22222",
-    type: "exit",
-    cardId: "2222222222",
-    userName: "Phạm Thị D",
-    status: "success",
-  },
-  {
-    id: "5",
-    time: "09:02:56",
-    plate: "Không đọc được",
-    type: "entry",
-    cardId: "3333333333",
-    userName: "Hoàng Văn E",
-    status: "error",
-  },
-];
+type SimulationResponse = {
+  message: string;
+  session: ParkingSession | null;
+};
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (const baseUrl of API_BASE_URL_CANDIDATES) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        cache: "no-store",
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {}),
+        },
+      });
+
+      const isJson = response.headers.get("content-type")?.includes("application/json");
+      const payload = isJson ? await response.json() : null;
+
+      if (!response.ok) {
+        const message =
+          payload && typeof payload === "object" && "message" in payload
+            ? String(payload.message)
+            : "Request failed.";
+        throw new Error(message);
+      }
+
+      return payload as T;
+    } catch (error) {
+      lastError =
+        error instanceof Error ? error : new Error("Unable to contact parking API.");
+    }
+  }
+
+  throw lastError ?? new Error("Unable to contact parking API.");
+}
+
+function formatTime(value: string | null): string {
+  if (!value) {
+    return "N/A";
+  }
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    dateStyle: "short",
+    timeStyle: "medium",
+  }).format(new Date(value));
+}
+
+function getRecordType(session: ParkingSession): "entry" | "exit" {
+  return session.status === "CLOSED" || Boolean(session.checkoutTime) ? "exit" : "entry";
+}
+
+function getDisplayPlate(session: ParkingSession): string {
+  return session.licensePlateOut ?? session.licensePlateIn ?? "N/A";
+}
+
+function getStatusMeta(status: string) {
+  switch (status) {
+    case "CLOSED":
+      return {
+        label: "Đã rời bãi",
+        className: "text-green-600",
+        icon: <CheckCircle className="w-4 h-4" />,
+      };
+    case "PAID":
+      return {
+        label: "Đã thanh toán",
+        className: "text-emerald-600",
+        icon: <CheckCircle className="w-4 h-4" />,
+      };
+    case "PENDING_PAYMENT":
+      return {
+        label: "Chờ thanh toán",
+        className: "text-orange-600",
+        icon: <Clock className="w-4 h-4" />,
+      };
+    case "PARKING":
+      return {
+        label: "Đang đỗ",
+        className: "text-yellow-600",
+        icon: <Clock className="w-4 h-4" />,
+      };
+    default:
+      return {
+        label: status,
+        className: "text-red-600",
+        icon: <AlertTriangle className="w-4 h-4" />,
+      };
+  }
+}
 
 export function EntryExit() {
   const [filter, setFilter] = useState<"all" | "entry" | "exit">("all");
+  const [sessions, setSessions] = useState<ParkingSession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [runningAction, setRunningAction] = useState<"check-in" | "check-out" | null>(null);
 
-  const filteredRecords = mockRecords.filter((record) => {
-    if (filter === "all") return true;
-    return record.type === filter;
+  const loadSessions = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const data = await requestJson<ParkingSession[]>("/api/parking/sessions");
+      setSessions(data);
+    } catch (loadError) {
+      const message =
+        loadError instanceof Error ? loadError.message : "Unable to load parking sessions.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let ignore = false;
+
+    requestJson<ParkingSession[]>("/api/parking/sessions")
+      .then((data) => {
+        if (ignore) {
+          return;
+        }
+
+        setSessions(data);
+        setError(null);
+      })
+      .catch((loadError) => {
+        if (ignore) {
+          return;
+        }
+
+        const message =
+          loadError instanceof Error ? loadError.message : "Unable to load parking sessions.";
+        setError(message);
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const runSimulation = async (
+    action: "check-in" | "check-out",
+    path: "/api/parking/simulate/random-check-in" | "/api/parking/simulate/random-check-out",
+  ) => {
+    setRunningAction(action);
+    setError(null);
+
+    try {
+      const result = await requestJson<SimulationResponse>(path, {
+        method: "POST",
+      });
+
+      await loadSessions();
+
+      if (!result.session) {
+        window.alert(result.message);
+      }
+    } catch (actionError) {
+      const message =
+        actionError instanceof Error ? actionError.message : "Unable to run demo action.";
+      setError(message);
+
+      if (action === "check-in") {
+        window.alert(message);
+      }
+    } finally {
+      setRunningAction(null);
+    }
+  };
+
+  const filteredSessions = sessions.filter((session) => {
+    if (filter === "all") {
+      return true;
+    }
+
+    return getRecordType(session) === filter;
   });
 
   return (
@@ -73,12 +226,44 @@ export function EntryExit() {
       <div>
         <h1 className="text-gray-900 mb-2">Quản lý xe ra/vào</h1>
         <p className="text-gray-600">
-          Theo dõi và kiểm soát luồng xe ra vào bãi đỗ
+          Theo dõi và kiểm soát lượng xe ra/vào bãi đỗ bằng dữ liệu từ backend.
         </p>
       </div>
 
       <div className="bg-white rounded-xl p-6 border border-gray-200">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <h3 className="text-gray-900 mb-2">Mô phỏng dữ liệu</h3>
+            <p className="text-sm text-gray-600">
+              Chưa tích hợp camera phần cứng. Dùng các nút bên dưới để mô phỏng
+              check-in/check-out ngẫu nhiên.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() =>
+                runSimulation("check-in", "/api/parking/simulate/random-check-in")
+              }
+              disabled={runningAction !== null}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white py-2 px-4 rounded-lg transition-colors"
+            >
+              {runningAction === "check-in" ? "Đang chạy..." : "Demo Check-in"}
+            </button>
+            <button
+              onClick={() =>
+                runSimulation("check-out", "/api/parking/simulate/random-check-out")
+              }
+              disabled={runningAction !== null}
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white py-2 px-4 rounded-lg transition-colors"
+            >
+              {runningAction === "check-out" ? "Đang chạy..." : "Demo Check-out"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl p-6 border border-gray-200">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
           <div className="flex gap-2">
             <button
               onClick={() => setFilter("all")}
@@ -111,107 +296,96 @@ export function EntryExit() {
               Xe ra
             </button>
           </div>
+          <button
+            onClick={() => void loadSessions()}
+            className="text-blue-600 hover:text-blue-700 text-sm"
+          >
+            Làm mới
+          </button>
         </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            {error}
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 text-gray-700">Thời gian</th>
-                <th className="text-left py-3 px-4 text-gray-700">Loại</th>
+              <tr className="border-b border-gray-200">                <th className="text-left py-3 px-4 text-gray-700">Thời gian</th>
                 <th className="text-left py-3 px-4 text-gray-700">Biển số xe</th>
-                <th className="text-left py-3 px-4 text-gray-700">Mã thẻ</th>
-                <th className="text-left py-3 px-4 text-gray-700">Người dùng</th>
+                <th className="text-left py-3 px-4 text-gray-700">Card UID</th>
+                <th className="text-left py-3 px-4 text-gray-700">Tên người dùng</th>
                 <th className="text-left py-3 px-4 text-gray-700">Trạng thái</th>
-                <th className="text-left py-3 px-4 text-gray-700">Camera</th>
+                <th className="text-left py-3 px-4 text-gray-700">Chi tiết</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRecords.map((record) => (
-                <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-4 px-4 text-gray-900">{record.time}</td>
-                  <td className="py-4 px-4">
-                    <span
-                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm ${
-                        record.type === "entry"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-green-100 text-green-700"
-                      }`}
-                    >
-                      {record.type === "entry" ? "Vào" : "Ra"}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-gray-900">{record.plate}</td>
-                  <td className="py-4 px-4 text-gray-600">{record.cardId}</td>
-                  <td className="py-4 px-4 text-gray-900">{record.userName}</td>
-                  <td className="py-4 px-4">
-                    {record.status === "success" && (
-                      <span className="flex items-center gap-1 text-green-600">
-                        <CheckCircle className="w-4 h-4" />
-                        Thành công
-                      </span>
-                    )}
-                    {record.status === "pending" && (
-                      <span className="flex items-center gap-1 text-yellow-600">
-                        <Clock className="w-4 h-4" />
-                        Chờ xác minh
-                      </span>
-                    )}
-                    {record.status === "error" && (
-                      <span className="flex items-center gap-1 text-red-600">
-                        <AlertTriangle className="w-4 h-4" />
-                        Lỗi OCR
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-4 px-4">
-                    <button className="flex items-center gap-1 text-blue-600 hover:text-blue-700">
-                      <Camera className="w-4 h-4" />
-                      Xem
-                    </button>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="py-6 px-4 text-center text-gray-500">
+                    Đang tải phiên gửi xe...
                   </td>
                 </tr>
-              ))}
+              ) : filteredSessions.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-6 px-4 text-center text-gray-500">
+                    Không tìm thấy phiên gửi xe nào.
+                  </td>
+                </tr>
+              ) : (
+                filteredSessions.map((session) => {
+                  const statusMeta = getStatusMeta(session.status);
+
+                  return (
+                    <tr
+                      key={session.id}
+                      className="border-b border-gray-100 hover:bg-gray-50"
+                    >
+                      <td className="py-4 px-4 text-gray-900">
+                        {formatTime(session.checkoutTime ?? session.checkinTime)}
+                      </td>
+                      <td className="py-4 px-4 text-gray-900">
+                        {getDisplayPlate(session)}
+                      </td>
+                      <td className="py-4 px-4 text-gray-600">
+                        {session.rfidCard?.uid ?? "N/A"}
+                      </td>
+                      <td className="py-4 px-4 text-gray-900">
+                        {session.rfidCard?.user?.fullName ?? "Không xác định"}
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`flex items-center gap-1 ${statusMeta.className}`}>
+                          {statusMeta.icon}
+                          {statusMeta.label}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <button
+                          onClick={() => {
+                            const lines = [
+                              `Biển số lúc vào: ${session.licensePlateIn ?? "N/A"}`,
+                              `Biển số lúc ra: ${session.licensePlateOut ?? "N/A"}`,
+                              `Khu vực: ${session.zone?.name ?? "N/A"}`,
+                            ];
+                            window.alert(lines.join("\n"));
+                          }}
+                          className="flex items-center gap-1 text-blue-600 hover:text-blue-700"
+                        >
+                          <FileText className="w-4 h-4" />
+                          Xem
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl p-6 border border-gray-200">
-          <h3 className="text-gray-900 mb-4">Camera Cổng Vào</h3>
-          <div className="aspect-video bg-gray-900 rounded-lg flex items-center justify-center">
-            <div className="text-center">
-              <Camera className="w-12 h-12 text-gray-600 mx-auto mb-2" />
-              <p className="text-gray-400">Live Camera Feed</p>
-            </div>
-          </div>
-          <div className="mt-4 flex items-center justify-between">
-            <span className="text-sm text-gray-600">Trạng thái:</span>
-            <span className="flex items-center gap-1 text-green-600">
-              <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse" />
-              Hoạt động
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 border border-gray-200">
-          <h3 className="text-gray-900 mb-4">Camera Cổng Ra</h3>
-          <div className="aspect-video bg-gray-900 rounded-lg flex items-center justify-center">
-            <div className="text-center">
-              <Camera className="w-12 h-12 text-gray-600 mx-auto mb-2" />
-              <p className="text-gray-400">Live Camera Feed</p>
-            </div>
-          </div>
-          <div className="mt-4 flex items-center justify-between">
-            <span className="text-sm text-gray-600">Trạng thái:</span>
-            <span className="flex items-center gap-1 text-green-600">
-              <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse" />
-              Hoạt động
-            </span>
-          </div>
         </div>
       </div>
     </div>
   );
 }
+

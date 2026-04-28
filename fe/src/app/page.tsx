@@ -25,6 +25,7 @@ export default function Home() {
     setIsLoggedIn(false);
     setActiveTab("dashboard");
     localStorage.removeItem("token");
+    localStorage.removeItem("userId");
     localStorage.removeItem("fullName");
     localStorage.removeItem("universityId");
   };
