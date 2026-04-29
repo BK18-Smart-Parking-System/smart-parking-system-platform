@@ -11,6 +11,7 @@ import {
   Activity,
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { StudentDashboard } from "./StudentDashboard";
 import { useRole } from "../contexts/RoleContext";
 
 const weekData = [
@@ -381,176 +382,6 @@ function OperatorDashboard() {
   );
 }
 
-function StudentDashboard() {
-  const fullName = localStorage.getItem("fullName") || "Nguyễn Văn A";
-  const universityId = localStorage.getItem("universityId") || "2011234";
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-gray-900 mb-2">Xin chào, {fullName}</h1>
-        <p className="text-gray-600">MSSV: {universityId} - Khoa Khoa học & Kỹ thuật Máy tính</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl p-6 border border-gray-200">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Car className="w-5 h-5 text-blue-600" />
-            </div>
-            <p className="text-sm text-gray-600">Trạng thái xe</p>
-          </div>
-          <p className="text-gray-900 mb-1">Đang đỗ</p>
-          <p className="text-sm text-gray-600">Khu B - Vị trí B24</p>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 border border-gray-200">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-            </div>
-            <p className="text-sm text-gray-600">Thanh toán tháng này</p>
-          </div>
-          <p className="text-gray-900 mb-1">Đã thanh toán</p>
-          <p className="text-sm text-gray-600">150,000 VNĐ</p>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 border border-gray-200">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Activity className="w-5 h-5 text-purple-600" />
-            </div>
-            <p className="text-sm text-gray-600">Lượt gửi xe tháng này</p>
-          </div>
-          <p className="text-gray-900 mb-1">42 lượt</p>
-          <p className="text-sm text-gray-600">Trung bình 2.1 lượt/ngày</p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl p-6 border border-gray-200">
-        <h3 className="text-gray-900 mb-4">Thông tin xe của bạn</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Biển số xe</p>
-              <p className="text-gray-900">51F-12345</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Loại xe</p>
-              <p className="text-gray-900">Xe máy</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Mã thẻ RFID</p>
-              <p className="text-gray-900">1234567890</p>
-            </div>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Thời gian vào gần nhất</p>
-              <p className="text-gray-900">Hôm nay, 07:45</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Thời gian đỗ</p>
-              <p className="text-gray-900">1 giờ 30 phút</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Vị trí đỗ</p>
-              <p className="text-gray-900">Khu B - Ô đỗ B24</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl p-6 border border-gray-200">
-          <h3 className="text-gray-900 mb-4">Trạng thái bãi xe</h3>
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-900">Khu A (Giảng viên)</span>
-                <span className="text-red-600">Đầy</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-red-500 h-2 rounded-full" style={{ width: "95%" }} />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-900">Khu B (Sinh viên 1)</span>
-                <span className="text-green-600">Còn chỗ</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-blue-600 h-2 rounded-full" style={{ width: "72%" }} />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-900">Khu C (Sinh viên 2)</span>
-                <span className="text-orange-600">Sắp đầy</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-orange-500 h-2 rounded-full" style={{ width: "83%" }} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 border border-gray-200">
-          <h3 className="text-gray-900 mb-4">Lịch sử gửi xe tuần này</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={weekData.slice(0, 5)}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="entries" fill="#3b82f6" name="Số lượt" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl p-6 border border-gray-200">
-        <h3 className="text-gray-900 mb-4">Lịch sử giao dịch gần đây</h3>
-        <div className="space-y-3">
-          {[
-            { date: "06/04/2026", time: "07:45", action: "Vào", location: "Khu B - B24" },
-            { date: "05/04/2026", time: "17:30", action: "Ra", location: "Khu B - B24" },
-            { date: "05/04/2026", time: "07:30", action: "Vào", location: "Khu B - B24" },
-            { date: "04/04/2026", time: "18:00", action: "Ra", location: "Khu B - B15" },
-            { date: "04/04/2026", time: "07:45", action: "Vào", location: "Khu B - B15" },
-          ].map((item, i) => (
-            <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-600 w-20">{item.date}</span>
-                <span className="text-sm text-gray-600 w-16">{item.time}</span>
-                <span className={`px-3 py-1 rounded-full text-sm ${
-                  item.action === "Vào" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
-                }`}>
-                  {item.action}
-                </span>
-                <span className="text-gray-900">{item.location}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-        <div className="flex gap-3">
-          <ParkingSquare className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-blue-900">Mẹo tiết kiệm</p>
-            <p className="text-sm text-blue-700 mt-1">
-              Bạn đã gửi xe 42 lượt tháng này. Nếu giảm xuống 40 lượt/tháng, bạn có thể tiết kiệm
-              được khoảng 6,000 VNĐ. Hãy thử đi bộ hoặc xe bus cho những quãng đường ngắn!
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function Dashboard() {
   const { userRole } = useRole();
 
@@ -564,3 +395,4 @@ export function Dashboard() {
 
   return <StudentDashboard />;
 }
+

@@ -9,7 +9,7 @@ type LoginProps = {
 };
 
 export function Login({ onBack, onLogin }: LoginProps) {
-	const [username, setUsername] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   const handleLogin = async () => {
@@ -72,22 +72,22 @@ export function Login({ onBack, onLogin }: LoginProps) {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
             <SquareParking className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-gray-900 mb-2">Hệ thống Bãi Xe Thông Minh</h1>
+          <h1 className="text-gray-900 mb-2">Hệ thống bãi xe thông minh</h1>
           <p className="text-gray-600">HCMUT Smart Parking System</p>
         </div>
 
         <form
           className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleLogin();
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleLogin();
           }}
         >
           <input
             type="text"
             placeholder="Tên đăng nhập"
             value={username}
-            onChange={(e) => setUsername(e.target.value)} // gán state
+            onChange={(event) => setUsername(event.target.value)}
             className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600 mb-4"
           />
 
@@ -95,7 +95,7 @@ export function Login({ onBack, onLogin }: LoginProps) {
             type="password"
             placeholder="Mật khẩu"
             value={password}
-            onChange={(e) => setPassword(e.target.value)} // gán state
+            onChange={(event) => setPassword(event.target.value)}
             className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
 
@@ -107,8 +107,11 @@ export function Login({ onBack, onLogin }: LoginProps) {
           </button>
         </form>
 
-        <button onClick={onBack} className="mt-4 hover:underline hover:cursor-pointer hover:text-blue-600">
-          ← Quay lại
+        <button
+          onClick={onBack}
+          className="mt-4 hover:underline hover:cursor-pointer hover:text-blue-600"
+        >
+          Quay lại
         </button>
       </div>
     </div>

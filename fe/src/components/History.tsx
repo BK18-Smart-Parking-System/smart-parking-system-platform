@@ -1,116 +1,239 @@
-import { Search, Calendar, Download, FileText } from "lucide-react";
-import { useState } from "react";
+import { Calendar, Download, FileText, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
-type HistoryRecord = {
+const API_BASE_URL_CANDIDATES = [
+  process.env.NEXT_PUBLIC_API_URL,
+  "http://localhost:8081",
+  "http://localhost:8080",
+].filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
+
+type ParkingHistoryItem = {
   id: string;
   date: string;
-  time: string;
-  vehiclePlate: string;
-  cardId: string;
-  userName: string;
-  entryTime: string;
-  exitTime: string;
-  duration: string;
-  amount: number;
+  plate: string;
+  checkinTime: string;
+  checkoutTime: string | null;
+  durationMinutes: number;
+  fee: number;
   status: string;
 };
 
-const mockHistory: HistoryRecord[] = [
-  {
-    id: "1",
-    date: "2026-03-30",
-    time: "17:30",
-    vehiclePlate: "51F-12345",
-    cardId: "1234567890",
-    userName: "Nguyễn Văn A",
-    entryTime: "08:30",
-    exitTime: "17:30",
-    duration: "9h 0m",
-    amount: 15000,
-    status: "Đã thanh toán",
-  },
-  {
-    id: "2",
-    date: "2026-03-30",
-    time: "16:45",
-    vehiclePlate: "59A-67890",
-    cardId: "0987654321",
-    userName: "Trần Thị B",
-    entryTime: "07:15",
-    exitTime: "16:45",
-    duration: "9h 30m",
-    amount: 15000,
-    status: "Đã thanh toán",
-  },
-  {
-    id: "3",
-    date: "2026-03-29",
-    time: "18:00",
-    vehiclePlate: "30H-11111",
-    cardId: "1111111111",
-    userName: "Lê Văn C",
-    entryTime: "08:00",
-    exitTime: "18:00",
-    duration: "10h 0m",
-    amount: 20000,
-    status: "Đã thanh toán",
-  },
-  {
-    id: "4",
-    date: "2026-03-29",
-    time: "15:30",
-    vehiclePlate: "51F-22222",
-    cardId: "2222222222",
-    userName: "Phạm Thị D",
-    entryTime: "09:00",
-    exitTime: "15:30",
-    duration: "6h 30m",
-    amount: 10000,
-    status: "Đã thanh toán",
-  },
-  {
-    id: "5",
-    date: "2026-03-28",
-    time: "17:15",
-    vehiclePlate: "60B-33333",
-    cardId: "3333333333",
-    userName: "Hoàng Văn E",
-    entryTime: "08:15",
-    exitTime: "17:15",
-    duration: "9h 0m",
-    amount: 15000,
-    status: "Đã thanh toán",
-  },
-];
+type ParkingHistoryResponse = {
+  items: ParkingHistoryItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
+  summary: {
+    totalSessions: number;
+    totalMinutes: number;
+    totalFee: number;
+    averageMinutes: number;
+    averageFeePerSession: number;
+  };
+};
+
+async function requestJson<T>(path: string): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (const baseUrl of API_BASE_URL_CANDIDATES) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        cache: "no-store",
+      });
+
+      const isJson = response.headers.get("content-type")?.includes("application/json");
+      const payload = isJson ? await response.json() : null;
+
+      if (!response.ok) {
+        const message =
+          payload && typeof payload === "object" && "message" in payload
+            ? String(payload.message)
+            : "Yêu cầu thất bại.";
+        throw new Error(message);
+      }
+
+      return payload as T;
+    } catch (error) {
+      lastError =
+        error instanceof Error ? error : new Error("Không thể kết nối API lịch sử gửi xe.");
+    }
+  }
+
+  throw lastError ?? new Error("Không thể kết nối API lịch sử gửi xe.");
+}
+
+function mapSessionStatus(status: string) {
+  switch (status) {
+    case "PARKING":
+      return "Đang đỗ";
+    case "PAID":
+      return "Đã thanh toán";
+    case "PENDING_PAYMENT":
+      return "Chờ thanh toán";
+    case "CLOSED":
+      return "Đã rời bãi";
+    default:
+      return status;
+  }
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return "N/A";
+  }
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function formatDuration(totalMinutes: number) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h ${minutes}m`;
+}
+
+function formatCurrency(value: number) {
+  return `${value.toLocaleString("vi-VN")} VNĐ`;
+}
 
 export function History() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [plate, setPlate] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [page, setPage] = useState(1);
+  const [historyData, setHistoryData] = useState<ParkingHistoryResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredHistory = mockHistory.filter(
-    (record) =>
-      record.vehiclePlate.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.cardId.includes(searchTerm)
-  );
+  const identityQuery = useMemo(() => {
+    if (typeof window === "undefined") {
+      return "";
+    }
+
+    const userId = localStorage.getItem("userId");
+    const universityId = localStorage.getItem("universityId");
+    const params = new URLSearchParams();
+
+    if (userId) {
+      params.set("userId", userId);
+    } else if (universityId) {
+      params.set("universityId", universityId);
+    }
+
+    return params.toString();
+  }, []);
+
+  const buildQueryString = useCallback(() => {
+    const params = new URLSearchParams(identityQuery);
+    params.set("page", String(page));
+    params.set("pageSize", "10");
+
+    if (plate.trim()) {
+      params.set("plate", plate.trim());
+    } else {
+      params.delete("plate");
+    }
+
+    if (startDate) {
+      params.set("startDate", startDate);
+    } else {
+      params.delete("startDate");
+    }
+
+    if (endDate) {
+      params.set("endDate", endDate);
+    } else {
+      params.delete("endDate");
+    }
+
+    return params.toString();
+  }, [identityQuery, page, plate, startDate, endDate]);
+
+  const loadHistory = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const query = buildQueryString();
+      const data = await requestJson<ParkingHistoryResponse>(
+        `/api/student/parking-history?${query}`,
+      );
+      setHistoryData(data);
+    } catch (loadError) {
+      const message =
+        loadError instanceof Error ? loadError.message : "Không tải được lịch sử gửi xe.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [buildQueryString]);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
+  const exportPdf = () => {
+    const items = historyData?.items ?? [];
+    if (items.length === 0) {
+      window.alert("Không có dữ liệu để xuất PDF.");
+      return;
+    }
+
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text("Lich su gui xe", 14, 15);
+
+    autoTable(doc, {
+      startY: 22,
+      head: [["Ngay", "Bien so", "Gio vao", "Gio ra", "Thoi gian gui", "Phi", "Trang thai"]],
+      body: items.map((item) => [
+        formatDate(item.date),
+        item.plate,
+        formatDate(item.checkinTime),
+        formatDate(item.checkoutTime),
+        formatDuration(item.durationMinutes),
+        formatCurrency(item.fee),
+        mapSessionStatus(item.status),
+      ]),
+      styles: {
+        fontSize: 9,
+      },
+    });
+
+    doc.save("lich-su-gui-xe.pdf");
+  };
+
+  const summary = historyData?.summary;
+  const pagination = historyData?.pagination;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-gray-900 mb-2">Lịch sử giao dịch</h1>
+        <h1 className="text-gray-900 mb-2">Lịch sử gửi xe</h1>
         <p className="text-gray-600">
-          Tra cứu và kiểm tra lịch sử các lượt xe ra/vào và thanh toán
+          Tra cứu và kiểm tra lịch sử các lượt gửi xe của bạn.
         </p>
       </div>
 
       <div className="bg-white rounded-xl p-6 border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="relative">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="relative md:col-span-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Tìm theo biển số, tên, mã thẻ..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tìm theo biển số..."
+              value={plate}
+              onChange={(event) => {
+                setPlate(event.target.value);
+                setPage(1);
+              }}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -119,15 +242,44 @@ export function History() {
             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="date"
+              value={startDate}
+              onChange={(event) => {
+                setStartDate(event.target.value);
+                setPage(1);
+              }}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
-          <button className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="date"
+              value={endDate}
+              onChange={(event) => {
+                setEndDate(event.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={exportPdf}
+            className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+          >
             <Download className="w-5 h-5" />
             Xuất dữ liệu
           </button>
         </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            {error}
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -135,42 +287,73 @@ export function History() {
               <tr className="border-b border-gray-200">
                 <th className="text-left py-3 px-4 text-gray-700">Ngày</th>
                 <th className="text-left py-3 px-4 text-gray-700">Biển số</th>
-                <th className="text-left py-3 px-4 text-gray-700">Người dùng</th>
                 <th className="text-left py-3 px-4 text-gray-700">Giờ vào</th>
                 <th className="text-left py-3 px-4 text-gray-700">Giờ ra</th>
-                <th className="text-left py-3 px-4 text-gray-700">Thời gian</th>
+                <th className="text-left py-3 px-4 text-gray-700">Thời gian gửi</th>
                 <th className="text-left py-3 px-4 text-gray-700">Phí</th>
-                <th className="text-left py-3 px-4 text-gray-700">Chi tiết</th>
+                <th className="text-left py-3 px-4 text-gray-700">Trạng thái</th>
               </tr>
             </thead>
             <tbody>
-              {filteredHistory.map((record) => (
-                <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-4 px-4 text-gray-900">{record.date}</td>
-                  <td className="py-4 px-4 text-gray-900">{record.vehiclePlate}</td>
-                  <td className="py-4 px-4 text-gray-900">{record.userName}</td>
-                  <td className="py-4 px-4 text-gray-600">{record.entryTime}</td>
-                  <td className="py-4 px-4 text-gray-600">{record.exitTime}</td>
-                  <td className="py-4 px-4 text-gray-600">{record.duration}</td>
-                  <td className="py-4 px-4 text-gray-900">
-                    {record.amount.toLocaleString()} VNĐ
-                  </td>
-                  <td className="py-4 px-4">
-                    <button className="flex items-center gap-1 text-blue-600 hover:text-blue-700">
-                      <FileText className="w-4 h-4" />
-                      Xem
-                    </button>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="py-6 px-4 text-center text-gray-500">
+                    Đang tải lịch sử gửi xe...
                   </td>
                 </tr>
-              ))}
+              ) : (historyData?.items.length ?? 0) === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-6 px-4 text-center text-gray-500">
+                    Không tìm thấy lịch sử gửi xe phù hợp.
+                  </td>
+                </tr>
+              ) : (
+                historyData?.items.map((record) => (
+                  <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-4 px-4 text-gray-900">{formatDate(record.date)}</td>
+                    <td className="py-4 px-4 text-gray-900">{record.plate}</td>
+                    <td className="py-4 px-4 text-gray-600">{formatDate(record.checkinTime)}</td>
+                    <td className="py-4 px-4 text-gray-600">{formatDate(record.checkoutTime)}</td>
+                    <td className="py-4 px-4 text-gray-600">{formatDuration(record.durationMinutes)}</td>
+                    <td className="py-4 px-4 text-gray-900">{formatCurrency(record.fee)}</td>
+                    <td className="py-4 px-4 text-gray-700">{mapSessionStatus(record.status)}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
-        {filteredHistory.length === 0 && (
+        {pagination && (
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-sm text-gray-600">
+              Trang {pagination.page}/{pagination.totalPages} - {pagination.totalItems} bản ghi
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                disabled={pagination.page <= 1}
+                className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50"
+              >
+                Trước
+              </button>
+              <button
+                onClick={() =>
+                  setPage((prev) => Math.min(prev + 1, pagination.totalPages))
+                }
+                disabled={pagination.page >= pagination.totalPages}
+                className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(historyData?.items.length ?? 0) === 0 && !loading && (
           <div className="text-center py-12">
             <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">Không tìm thấy giao dịch nào</p>
+            <p className="text-gray-600">Không tìm thấy dữ liệu lịch sử gửi xe.</p>
           </div>
         )}
       </div>
@@ -181,15 +364,15 @@ export function History() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-gray-600">Tổng số lượt</span>
-              <span className="text-gray-900">5 lượt</span>
+              <span className="text-gray-900">{summary?.totalSessions ?? 0} lượt</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-600">Tổng thời gian</span>
-              <span className="text-gray-900">44h 0m</span>
+              <span className="text-gray-900">{formatDuration(summary?.totalMinutes ?? 0)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-600">Tổng phí</span>
-              <span className="text-gray-900">75,000 VNĐ</span>
+              <span className="text-gray-900">{formatCurrency(summary?.totalFee ?? 0)}</span>
             </div>
           </div>
         </div>
@@ -198,16 +381,20 @@ export function History() {
           <h3 className="text-gray-900 mb-4">Xu hướng</h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-gray-600">Thời gian đỗ trung bình</span>
-              <span className="text-gray-900">8h 48m</span>
+              <span className="text-gray-600">Thời gian gửi trung bình</span>
+              <span className="text-gray-900">
+                {formatDuration(summary?.averageMinutes ?? 0)}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-600">Phí trung bình/lượt</span>
-              <span className="text-gray-900">15,000 VNĐ</span>
+              <span className="text-gray-900">
+                {formatCurrency(summary?.averageFeePerSession ?? 0)}
+              </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-gray-600">Giờ vào phổ biến</span>
-              <span className="text-gray-900">08:00 - 09:00</span>
+              <span className="text-gray-600">Bản ghi đang hiển thị</span>
+              <span className="text-gray-900">{historyData?.items.length ?? 0}</span>
             </div>
           </div>
         </div>
