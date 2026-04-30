@@ -24,6 +24,14 @@ export class StudentDashboardController {
     return this.studentDashboardService.createPaymentLink(query);
   }
 
+  @Post('sync-payment-status')
+  async syncPaymentStatus(
+    @Query() query: StudentIdentityQueryDto,
+    @Body() _body: Record<string, never>,
+  ) {
+    return this.studentDashboardService.syncPaymentStatus(query);
+  }
+
   @Get('parking-history')
   async getParkingHistory(@Query() query: ParkingHistoryQueryDto) {
     return this.studentDashboardService.getParkingHistory(query);

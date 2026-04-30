@@ -180,6 +180,8 @@ model PaymentTransaction {
   amount Float // Tổng số tiền cần thanh toán
   status PaymentStatus @default(PENDING)
   method PaymentMethod // BKPAY_QR hoặc CASH
+  orderCode String? @unique
+  paymentLinkId String? @unique
 
   qrCodeUrl String? // Link lưu mã QR được sinh ra cho đợt thanh toán này
   dueDate   DateTime? // Hạn chót thanh toán (dành cho SV/CB)
