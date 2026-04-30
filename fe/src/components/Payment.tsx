@@ -123,7 +123,23 @@ function StudentPaymentView() {
   };
 
   useEffect(() => {
-    void loadInfo();
+    const syncAndLoad = async () => {
+      try {
+        await requestJson<{ message: string }>(
+          `/api/student/sync-payment-status${identityQuery}`,
+          {
+            method: "POST",
+            body: JSON.stringify({}),
+          },
+        );
+      } catch {
+        // Keep UI usable even when sync endpoint is temporarily unavailable.
+      }
+
+      await loadInfo();
+    };
+
+    void syncAndLoad();
   }, [identityQuery]);
 
   const onCreatePaymentLink = async () => {

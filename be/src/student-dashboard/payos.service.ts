@@ -48,8 +48,18 @@ export class PayosService {
     });
 
     return {
+      orderCode: response.orderCode,
+      paymentLinkId: response.paymentLinkId,
       checkoutUrl: response.checkoutUrl as string,
       qrCode: (response as any).qrCode as string | undefined,
     };
+  }
+
+  async verifyWebhook(webhook: Record<string, unknown>) {
+    return this.payos.webhooks.verify(webhook as any);
+  }
+
+  async getPaymentLinkByOrderCode(orderCode: number) {
+    return this.payos.paymentRequests.get(orderCode);
   }
 }

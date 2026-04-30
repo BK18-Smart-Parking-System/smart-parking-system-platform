@@ -252,12 +252,15 @@ export class StudentDashboardService {
     }
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const returnUrl = process.env.PAYOS_RETURN_URL || `${frontendUrl}/payment?status=success`;
-    const cancelUrl = process.env.PAYOS_CANCEL_URL || `${frontendUrl}/payment?status=cancel`;
+    const returnUrl =
+      process.env.PAYOS_RETURN_URL || `${frontendUrl}/?payment_status=success`;
+    const cancelUrl =
+      process.env.PAYOS_CANCEL_URL || `${frontendUrl}/?payment_status=cancel`;
     const orderCode = this.generateOrderCode();
 
     let checkoutUrl: string;
     let qrCode: string | undefined;
+    let paymentLinkId: string | undefined;
 
     try {
       const payosResult = await this.payosService.createPaymentLink({
@@ -270,6 +273,7 @@ export class StudentDashboardService {
 
       checkoutUrl = payosResult.checkoutUrl;
       qrCode = payosResult.qrCode;
+      paymentLinkId = payosResult.paymentLinkId;
     } catch (error) {
       throw new InternalServerErrorException(
         `Không thể tạo liên kết thanh toán PayOS: ${
@@ -281,6 +285,8 @@ export class StudentDashboardService {
     const payment = await this.prisma.paymentTransaction.create({
       data: {
         userId: user.id,
+        orderCode: String(orderCode),
+        paymentLinkId,
         amount: totalAmount,
         status: PaymentStatus.PENDING,
         method: PaymentMethod.BKPAY_QR,
@@ -307,6 +313,112 @@ export class StudentDashboardService {
       amount: totalAmount,
       checkoutUrl,
       qrCode,
+    };
+  }
+
+  async syncPaymentStatus(identity: StudentIdentityQueryDto) {
+    const user = await this.resolveStudentUser(identity);
+    const pendingPayments = await this.prisma.paymentTransaction.findMany({
+      where: {
+        userId: user.id,
+        status: PaymentStatus.PENDING,
+        orderCode: { not: null },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (const payment of pendingPayments) {
+      const orderCode = Number(payment.orderCode);
+      if (!Number.isFinite(orderCode)) {
+        continue;
+      }
+
+      try {
+        const paymentLink = await this.payosService.getPaymentLinkByOrderCode(orderCode);
+
+        if (paymentLink.status === 'PAID') {
+          await this.markPaymentSuccess(payment.id, new Date());
+          successCount += 1;
+          continue;
+        }
+
+        if (paymentLink.status === 'CANCELLED' || paymentLink.status === 'FAILED') {
+          await this.prisma.paymentTransaction.update({
+            where: { id: payment.id },
+            data: { status: PaymentStatus.FAILED },
+          });
+          failedCount += 1;
+          continue;
+        }
+
+        if (paymentLink.status === 'EXPIRED') {
+          await this.prisma.paymentTransaction.update({
+            where: { id: payment.id },
+            data: { status: PaymentStatus.TIMEOUT },
+          });
+          failedCount += 1;
+        }
+      } catch {
+        // Ignore PayOS lookup errors here so FE still receives current DB state.
+      }
+    }
+
+    return {
+      message: 'Đồng bộ trạng thái thanh toán hoàn tất.',
+      updatedSuccess: successCount,
+      updatedFailed: failedCount,
+    };
+  }
+
+  async handlePayosWebhook(payload: Record<string, unknown>) {
+    const webhookData = await this.payosService.verifyWebhook(payload);
+    const orderCode = webhookData.orderCode;
+
+    const payment = await this.prisma.paymentTransaction.findFirst({
+      where: {
+        orderCode: String(orderCode),
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!payment) {
+      return {
+        received: true,
+        updated: false,
+        message: 'Không tìm thấy giao dịch tương ứng với orderCode.',
+      };
+    }
+
+    if (webhookData.code === '00') {
+      await this.markPaymentSuccess(payment.id, new Date(webhookData.transactionDateTime));
+      return {
+        received: true,
+        updated: true,
+        status: PaymentStatus.SUCCESS,
+      };
+    }
+
+    if (payment.status === PaymentStatus.PENDING) {
+      await this.prisma.paymentTransaction.update({
+        where: { id: payment.id },
+        data: {
+          status: PaymentStatus.FAILED,
+        },
+      });
+    }
+
+    return {
+      received: true,
+      updated: true,
+      status: PaymentStatus.FAILED,
     };
   }
 
@@ -501,5 +613,29 @@ export class StudentDashboardService {
     const now = Date.now().toString();
     const random = Math.floor(Math.random() * 90 + 10).toString();
     return Number(`${now.slice(-8)}${random}`);
+  }
+
+  private async markPaymentSuccess(paymentId: string, paidAt: Date) {
+    const parsedPaidAt = Number.isNaN(paidAt.getTime()) ? new Date() : paidAt;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.paymentTransaction.update({
+        where: { id: paymentId },
+        data: {
+          status: PaymentStatus.SUCCESS,
+          paidAt: parsedPaidAt,
+        },
+      });
+
+      await tx.parkingSession.updateMany({
+        where: {
+          paymentId,
+          status: SessionStatus.PENDING_PAYMENT,
+        },
+        data: {
+          status: SessionStatus.PAID,
+        },
+      });
+    });
   }
 }
