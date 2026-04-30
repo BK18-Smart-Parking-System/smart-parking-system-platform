@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast, Toaster } from "react-hot-toast";
 import { Shield, Mail, User, ShieldAlert } from "lucide-react";
+import { getAccessToken } from "@/lib/token";
 
 type UserData = {
   id: string;
@@ -18,7 +19,7 @@ export function Permissions() {
   // Lấy danh sách users
   const fetchUsers = async () => {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL;
       const res = await fetch(`${baseUrl}/api/users`);
       if (!res.ok) throw new Error("Lỗi khi tải dữ liệu");
       const data = await res.json();
@@ -38,9 +39,9 @@ export function Permissions() {
   const handleRoleChange = async (userId: string, newRole: string) => {
     const loadingToast = toast.loading("Đang cập nhật quyền...");
     try {
-      const token = localStorage.getItem("token");
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-      
+      const token = getAccessToken();
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+
       const res = await fetch(`${baseUrl}/api/users/${userId}/role`, {
         method: "PATCH",
         headers: {
@@ -60,7 +61,7 @@ export function Permissions() {
       // Update local state
       setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
     } catch (error: any) {
-      toast.error(error.message || "Cập nhật thất bại!", { id: loadingToast });
+      toast.error("Cập nhật thất bại!", { id: loadingToast });
     }
   };
 

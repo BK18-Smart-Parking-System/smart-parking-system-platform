@@ -4,9 +4,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const API_BASE_URL_CANDIDATES = [
-  process.env.NEXT_PUBLIC_API_URL,
-  "http://localhost:8081",
-  "http://localhost:8080",
+  process.env.NEXT_PUBLIC_API_URL
 ].filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
 
 type ParkingHistoryItem = {
@@ -117,8 +115,9 @@ export function History() {
       return "";
     }
 
-    const userId = localStorage.getItem("userId");
-    const universityId = localStorage.getItem("universityId");
+    const user = localStorage.getItem("user");
+    const userId = user ? JSON.parse(user).id : null;
+    const universityId = user ? JSON.parse(user).universityId : null;
     const params = new URLSearchParams();
 
     if (userId) {

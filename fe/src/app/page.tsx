@@ -79,8 +79,7 @@ export default function Home() {
     setIsLoggedIn(false);
     setActiveTab("dashboard");
     clearAccessToken();
-    localStorage.removeItem("fullName");
-    localStorage.removeItem("universityId");
+    localStorage.removeItem("user");
   }
 };
 

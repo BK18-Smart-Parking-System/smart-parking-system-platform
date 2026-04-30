@@ -35,16 +35,12 @@ export function Login({ onBack, onLogin }: LoginProps) {
 
       // lưu accessToken vào memory
       setAccessToken(data.access_token);
+      // lưu user info vào localStorage
+      localStorage.setItem("user", JSON.stringify(data.user));
 
       // decode role
       const decoded = parseJwt(data.access_token);
-      const resolvedRole =
-        decoded?.role || data.user?.role || "STUDENT";
-
-      if (data.user) {
-        localStorage.setItem("fullName", data.user.fullName || "");
-        localStorage.setItem("universityId", data.user.universityId || "");
-      }
+      const resolvedRole = decoded?.role || data.user?.role || "STUDENT";
 
       switch (resolvedRole.toUpperCase()) {
         case "ADMIN":
