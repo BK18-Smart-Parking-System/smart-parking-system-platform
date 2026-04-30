@@ -1,5 +1,6 @@
 'use client';
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { parseJwt, useRole } from "../contexts/RoleContext";
 import { LoginPage } from "../components/LoginPage";
 import { Sidebar } from "../components/Sidebar";
 import { Dashboard } from "../components/Dashboard";
@@ -10,25 +11,83 @@ import { History } from "../components/History";
 import { Reports } from "../components/Reports";
 import { Permissions } from "../components/Permissions";
 import { Settings } from "../components/Settings";
+import { setAccessToken, clearAccessToken } from "@/lib/token";
 
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState<string>("student");
+  const [isLoading, setIsLoading] = useState(true);
+  const { setUserRole } = useRole();
   const [activeTab, setActiveTab] = useState("dashboard");
+
+  // Khi mở web, refresh lại token mới để giữ login
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/auth/refresh`,
+          {
+            method: "POST",
+            credentials: "include", // gửi cookie (refresh token)
+          }
+        );
+
+        if (!res.ok) {
+          setIsLoading(false);
+          return;
+        }
+
+        const data = await res.json();
+
+        if (data.access_token) {
+          setAccessToken(data.access_token);
+          
+          // decode role
+          const decoded = parseJwt(data.access_token); 
+          const payload = decoded || {};
+
+          setUserRole(payload.role.toLowerCase() || "student");
+          setIsLoggedIn(true);
+        }
+      } catch (err) {
+        console.error("Khởi tạo xác thực thất bại", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (!document.cookie.includes("refreshToken")) {
+      initAuth();
+    }
+  }, []);
 
   const handleLogin = (role: string) => {
     setUserRole(role);
     setIsLoggedIn(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+  try {
+    // Xóa refreshToken ở server
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include", // Quan trọng: Để gửi cookie đi và nhận lệnh xóa cookie về
+    });
+  } catch (err) {
+    console.error("Logout API failed", err);
+  } finally {
+    // Luôn xóa mấy cái này
     setIsLoggedIn(false);
     setActiveTab("dashboard");
-    localStorage.removeItem("token");
-    localStorage.removeItem("userId");
+    clearAccessToken();
     localStorage.removeItem("fullName");
     localStorage.removeItem("universityId");
-  };
+  }
+};
+
+  // Hiệu ứng load khi đang kiểm tra token
+  if (isLoading) {
+    return <div className="p-10">Loading...</div>;
+  }
 
   if (!isLoggedIn) {
     return <LoginPage onLogin={handleLogin} />;
@@ -40,15 +99,13 @@ export default function Home() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onLogout={handleLogout}
-        userRole={userRole}
       />
       <main className="flex-1 overflow-y-auto">
         <div className="p-8">
-          {/* Mỗi tab là 1 component -> gọi api hay gì thì làm trong component đó */}
-          {activeTab === "dashboard" && <Dashboard userRole={userRole} />}
+          {activeTab === "dashboard" && <Dashboard />}
           {activeTab === "entry-exit" && <EntryExit />}
           {activeTab === "parking-slots" && <ParkingSlots />}
-          {activeTab === "payment" && <Payment userRole={userRole} />}
+          {activeTab === "payment" && <Payment />}
           {activeTab === "history" && <History />}
           {activeTab === "reports" && <Reports />}
           {activeTab === "permissions" && <Permissions />}

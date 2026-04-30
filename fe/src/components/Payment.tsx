@@ -1,10 +1,9 @@
 import { AlertTriangle, CheckCircle, Clock, CreditCard } from "lucide-react";
+import { useRole } from "../contexts/RoleContext";
 import { useEffect, useMemo, useState } from "react";
 
 const API_BASE_URL_CANDIDATES = [
   process.env.NEXT_PUBLIC_API_URL,
-  "http://localhost:8081",
-  "http://localhost:8080",
 ].filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
 
 type StudentPaymentInfo = {
@@ -336,7 +335,9 @@ function ManagementPaymentView() {
   );
 }
 
-export function Payment({ userRole }: { userRole: string }) {
+export function Payment() {
+  const { userRole } = useRole();
+  
   if (userRole === "student") {
     return <StudentPaymentView />;
   }

@@ -3,9 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const API_BASE_URL_CANDIDATES = [
-  process.env.NEXT_PUBLIC_API_URL,
-  "http://localhost:8081",
-  "http://localhost:8080",
+  process.env.NEXT_PUBLIC_API_URL
 ].filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
 
 type OverviewResponse = {
@@ -116,7 +114,7 @@ function mapSessionStatus(status: string) {
   }
 }
 
-export function StudentDashboardConnected() {
+export function StudentDashboard() {
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

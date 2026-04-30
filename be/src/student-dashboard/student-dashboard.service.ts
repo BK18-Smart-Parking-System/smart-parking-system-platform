@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PaymentMethod, PaymentStatus, SessionStatus } from '../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
-import { ParkingHistoryQueryDto, StudentIdentityQueryDto } from './student-dashboard.dto';
+import { ParkingHistoryQueryDto, StudentIdentityQueryDto } from './dto/student-dashboard.dto';
 import { PayosService } from './payos.service';
 
 @Injectable()

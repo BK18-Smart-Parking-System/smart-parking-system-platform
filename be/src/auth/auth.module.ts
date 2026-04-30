@@ -6,8 +6,8 @@ import { AuthService } from './auth.service';
 @Module({
     imports: [
         JwtModule.register({
-            secret: process.env.JWT_SECRET ?? 'dev-jwt-secret',
-            signOptions: { expiresIn: '1d' },
+            secret: process.env.JWT_ACCESS_SECRET ?? 'dev-jwt-secret',
+            signOptions: { expiresIn: '15m' },
         }),
     ],
     controllers: [AuthController],

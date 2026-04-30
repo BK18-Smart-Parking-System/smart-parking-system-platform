@@ -2,9 +2,7 @@ import { AlertTriangle, CheckCircle, Clock, FileText } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const API_BASE_URL_CANDIDATES = [
-  process.env.NEXT_PUBLIC_API_URL,
-  "http://localhost:8081",
-  "http://localhost:8080",
+  process.env.NEXT_PUBLIC_API_URL
 ].filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
 
 type ParkingSession = {
@@ -226,7 +224,7 @@ export function EntryExit() {
       <div>
         <h1 className="text-gray-900 mb-2">Quản lý xe ra/vào</h1>
         <p className="text-gray-600">
-          Theo dõi và kiểm soát lượng xe ra/vào bãi đỗ bằng dữ liệu từ backend.
+          Theo dõi và kiểm soát lượng xe ra/vào bãi đỗ.
         </p>
       </div>
 
@@ -313,7 +311,8 @@ export function EntryExit() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200">                <th className="text-left py-3 px-4 text-gray-700">Thời gian</th>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-4 text-gray-700">Thời gian</th>
                 <th className="text-left py-3 px-4 text-gray-700">Biển số xe</th>
                 <th className="text-left py-3 px-4 text-gray-700">Card UID</th>
                 <th className="text-left py-3 px-4 text-gray-700">Tên người dùng</th>

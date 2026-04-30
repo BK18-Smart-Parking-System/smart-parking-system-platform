@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   // Khởi tạo ứng dụng NestJS với AppModule làm module gốc
@@ -10,6 +11,8 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   // Sử dụng ValidationPipe để tự động validate dữ liệu đầu vào dựa trên các DTO đã định nghĩa
   app.useGlobalPipes(new ValidationPipe());
+  // Parse cookie từ request
+  app.use(cookieParser());
   // Cấu hình CORS
   app.enableCors({
     origin: process.env.FRONTEND_URL || '*', // Cho phép tất cả các nguồn hoặc chỉ định một nguồn cụ thể

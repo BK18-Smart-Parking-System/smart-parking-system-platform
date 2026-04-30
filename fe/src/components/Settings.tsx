@@ -1,66 +1,112 @@
+"use client";
 import { DollarSign, Save } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-type PricePolicy = {
+type Role = "STUDENT" | "STAFF" | "OPERATOR" | "GUEST" | "ADMIN";
+type BillingCycle = "MONTHLY" | "PAY_NOW" | "FREE";
+
+type Policy = {
   id: string;
-  userGroup: string;
-  pricePerSession: number;
+  role: Role;
+  basePrice: number;
   pricePerHour: number;
   maxDailyPrice: number;
-  billingCycle: string;
-  effectiveDate: string;
+  billingCycle: BillingCycle;
+  effectiveFrom: string; // ISO string từ BE
+  effectiveTo: string | null;
+  createdAt: string;
 };
 
-const initialPolicies: PricePolicy[] = [
-  {
-    id: "1",
-    userGroup: "Sinh viên",
-    pricePerSession: 3000,
-    pricePerHour: 5000,
-    maxDailyPrice: 30000,
-    billingCycle: "Hàng tháng",
-    effectiveDate: "2026-01-01",
-  },
-  {
-    id: "2",
-    userGroup: "Giảng viên",
-    pricePerSession: 0,
-    pricePerHour: 0,
-    maxDailyPrice: 0,
-    billingCycle: "Miễn phí",
-    effectiveDate: "2026-01-01",
-  },
-  {
-    id: "3",
-    userGroup: "Cán bộ",
-    pricePerSession: 0,
-    pricePerHour: 0,
-    maxDailyPrice: 0,
-    billingCycle: "Miễn phí",
-    effectiveDate: "2026-01-01",
-  },
-  {
-    id: "4",
-    userGroup: "Khách vãng lai",
-    pricePerSession: 5000,
-    pricePerHour: 10000,
-    maxDailyPrice: 50000,
-    billingCycle: "Trả ngay",
-    effectiveDate: "2026-01-01",
-  },
-];
+const ROLE_LABEL: Record<Role, string> = {
+  STUDENT: "Sinh viên",
+  STAFF: "Cán bộ / Giảng viên",
+  OPERATOR: "Nhân viên vận hành",
+  GUEST: "Khách vãng lai",
+  ADMIN: "Quản trị viên",
+};
+
+const CYCLE_LABEL: Record<BillingCycle, string> = {
+  MONTHLY: "Hàng tháng",
+  PAY_NOW: "Trả ngay",
+  FREE: "Miễn phí",
+};
+
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export function Settings() {
-  const [policies, setPolicies] = useState<PricePolicy[]>(initialPolicies);
+  const [policies, setPolicies] = useState<Policy[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [dirty, setDirty] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
 
-  const handleEdit = (id: string, field: keyof PricePolicy, value: string | number) => {
+  useEffect(() => {
+    fetch(`${API}/api/settings/pricing-policies`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data: Policy[]) => {
+        setPolicies(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(String(err));
+        setLoading(false);
+      });
+  }, []);
+
+  const handleEdit = (id: string, field: keyof Policy, value: string | number) => {
     setPolicies((prev) =>
-      prev.map((policy) =>
-        policy.id === id ? { ...policy, [field]: value } : policy
-      )
+      prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
     );
+    setDirty((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
   };
+
+  const handleSave = async () => {
+    if (dirty.size === 0) {
+      alert("Không có thay đổi nào để lưu");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const toSave = policies.filter((p) => dirty.has(p.id));
+      await Promise.all(
+        toSave.map((p) =>
+          fetch(`${API}/api/settings/pricing-policies/${p.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              basePrice: p.basePrice,
+              pricePerHour: p.pricePerHour,
+              maxDailyPrice: p.maxDailyPrice,
+              billingCycle: p.billingCycle,
+              effectiveFrom: p.effectiveFrom.slice(0, 10),
+            }),
+          }).then((r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status} cho policy ${p.id}`);
+            return r.json();
+          })
+        )
+      );
+      setDirty(new Set());
+      alert(`Đã lưu ${toSave.length} thay đổi`);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-gray-600">Đang tải dữ liệu...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -70,6 +116,12 @@ export function Settings() {
           Quản lý cấu hình và chính sách giá cho hệ thống bãi xe
         </p>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
 
       <div className="bg-white rounded-xl p-6 border border-gray-200">
         <div className="flex items-center justify-between mb-6">
@@ -84,9 +136,13 @@ export function Settings() {
               </p>
             </div>
           </div>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg flex items-center gap-2 transition-colors">
+          <button
+            onClick={handleSave}
+            disabled={saving || dirty.size === 0}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-2 px-4 rounded-lg flex items-center gap-2 transition-colors"
+          >
             <Save className="w-5 h-5" />
-            Lưu thay đổi
+            {saving ? "Đang lưu..." : `Lưu thay đổi${dirty.size > 0 ? ` (${dirty.size})` : ""}`}
           </button>
         </div>
 
@@ -106,22 +162,25 @@ export function Settings() {
             <tbody>
               {policies.map((policy) => {
                 const isEditing = editingId === policy.id;
+                const dateStr = policy.effectiveFrom.slice(0, 10);
                 return (
                   <tr key={policy.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-4 px-4 text-gray-900">{policy.userGroup}</td>
+                    <td className="py-4 px-4 text-gray-900">{ROLE_LABEL[policy.role]}</td>
                     <td className="py-4 px-4">
                       {isEditing ? (
                         <input
                           type="number"
-                          value={policy.pricePerSession}
+                          step={1000}
+                          min={0}
+                          value={policy.basePrice}
                           onChange={(e) =>
-                            handleEdit(policy.id, "pricePerSession", parseInt(e.target.value))
+                            handleEdit(policy.id, "basePrice", parseInt(e.target.value) || 0)
                           }
                           className="w-full px-2 py-1 border border-gray-300 rounded"
                         />
                       ) : (
                         <span className="text-gray-900">
-                          {policy.pricePerSession.toLocaleString()} VNĐ
+                          {policy.basePrice.toLocaleString()} VNĐ
                         </span>
                       )}
                     </td>
@@ -129,9 +188,11 @@ export function Settings() {
                       {isEditing ? (
                         <input
                           type="number"
+                          step={1000}
+                          min={0}
                           value={policy.pricePerHour}
                           onChange={(e) =>
-                            handleEdit(policy.id, "pricePerHour", parseInt(e.target.value))
+                            handleEdit(policy.id, "pricePerHour", parseInt(e.target.value) || 0)
                           }
                           className="w-full px-2 py-1 border border-gray-300 rounded"
                         />
@@ -145,9 +206,11 @@ export function Settings() {
                       {isEditing ? (
                         <input
                           type="number"
+                          step={1000}
+                          min={0}
                           value={policy.maxDailyPrice}
                           onChange={(e) =>
-                            handleEdit(policy.id, "maxDailyPrice", parseInt(e.target.value))
+                            handleEdit(policy.id, "maxDailyPrice", parseInt(e.target.value) || 0)
                           }
                           className="w-full px-2 py-1 border border-gray-300 rounded"
                         />
@@ -166,26 +229,26 @@ export function Settings() {
                           }
                           className="w-full px-2 py-1 border border-gray-300 rounded"
                         >
-                          <option>Hàng tháng</option>
-                          <option>Trả ngay</option>
-                          <option>Miễn phí</option>
+                          <option value="MONTHLY">Hàng tháng</option>
+                          <option value="PAY_NOW">Trả ngay</option>
+                          <option value="FREE">Miễn phí</option>
                         </select>
                       ) : (
-                        <span className="text-gray-900">{policy.billingCycle}</span>
+                        <span className="text-gray-900">{CYCLE_LABEL[policy.billingCycle]}</span>
                       )}
                     </td>
                     <td className="py-4 px-4">
                       {isEditing ? (
                         <input
                           type="date"
-                          value={policy.effectiveDate}
+                          value={dateStr}
                           onChange={(e) =>
-                            handleEdit(policy.id, "effectiveDate", e.target.value)
+                            handleEdit(policy.id, "effectiveFrom", e.target.value)
                           }
                           className="w-full px-2 py-1 border border-gray-300 rounded"
                         />
                       ) : (
-                        <span className="text-gray-600">{policy.effectiveDate}</span>
+                        <span className="text-gray-600">{dateStr}</span>
                       )}
                     </td>
                     <td className="py-4 px-4">

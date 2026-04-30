@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
-import { ParkingHistoryQueryDto, StudentIdentityQueryDto } from './student-dashboard.dto';
+import { ParkingHistoryQueryDto, StudentIdentityQueryDto } from './dto/student-dashboard.dto';
 import { StudentDashboardService } from './student-dashboard.service';
 
 @Controller('student')

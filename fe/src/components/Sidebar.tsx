@@ -1,3 +1,5 @@
+import React from "react";
+import { useRole } from "../contexts/RoleContext";
 import {
   LayoutDashboard,
   Car,
@@ -8,6 +10,7 @@ import {
   FileText,
   ParkingSquare,
   LogOut,
+  AlertTriangle,
 } from "lucide-react";
 
 type MenuItem = {
@@ -22,7 +25,7 @@ const menuItems: MenuItem[] = [
     id: "dashboard",
     label: "Tổng quan",
     icon: <LayoutDashboard className="w-5 h-5" />,
-    roles: ["admin", "operator", "student"],
+    roles: ["admin", "operator", "student", "guest"],
   },
   {
     id: "entry-exit",
@@ -34,7 +37,13 @@ const menuItems: MenuItem[] = [
     id: "parking-slots",
     label: "Trạng thái ô đỗ",
     icon: <ParkingSquare className="w-5 h-5" />,
-    roles: ["admin", "operator"],
+    roles: ["admin", "operator", "student", "guest"],
+  },
+  {
+    id: "profile",
+    label: "Thông tin cá nhân & thẻ",
+    icon: <CreditCard className="w-5 h-5" />,
+    roles: ["admin", "operator", "student", "guest"],
   },
   {
     id: "payment",
@@ -55,6 +64,12 @@ const menuItems: MenuItem[] = [
     roles: ["admin", "operator"],
   },
   {
+    id: "iot-alerts",
+    label: "Quản lý sự cố IoT",
+    icon: <AlertTriangle className="w-5 h-5" />,
+    roles: ["admin", "operator"],
+  },
+  {
     id: "permissions",
     label: "Phân quyền",
     icon: <Users className="w-5 h-5" />,
@@ -72,15 +87,14 @@ type SidebarProps = {
   activeTab: string;
   onTabChange: (tab: string) => void;
   onLogout: () => void;
-  userRole: string;
 };
 
 export function Sidebar({
   activeTab,
   onTabChange,
   onLogout,
-  userRole,
 }: SidebarProps) {
+  const { userRole } = useRole();
   const filteredItems = menuItems.filter((item) =>
     item.roles.includes(userRole)
   );

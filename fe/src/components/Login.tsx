@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { SquareParking } from "lucide-react";
+import { parseJwt } from "../contexts/RoleContext";
+import { setAccessToken } from "@/lib/token";
 
 type LoginProps = {
   onBack: () => void;
@@ -11,58 +13,55 @@ export function Login({ onBack, onLogin }: LoginProps) {
   const [password, setPassword] = useState("");
 
   const handleLogin = async () => {
-    const baseUrls = [
-      process.env.NEXT_PUBLIC_API_URL,
-      "http://localhost:8081",
-      "http://localhost:8080",
-    ].filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
-
-    let payload: any = null;
-    let lastError = "Dang nhap that bai!";
-
-    for (const baseUrl of baseUrls) {
-      try {
-        const response = await fetch(`${baseUrl}/api/auth/login`, {
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
+        {
           method: "POST",
+          credentials: "include", // để gửi cookie (refresh token)
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ username, password }),
-        });
-
-        payload = await response.json();
-        if (response.ok && payload?.access_token) {
-          break;
         }
+      );
 
-        lastError =
-          payload && typeof payload === "object" && "message" in payload
-            ? String(payload.message)
-            : "Dang nhap that bai!";
-      } catch (_error) {
-        lastError = "Khong the ket noi den server.";
+      const data = await res.json();
+
+      if (!data.access_token) {
+        alert("Đăng nhập thất bại!");
+        return;
       }
-    }
 
-    if (!payload?.access_token) {
-      alert(lastError);
-      return;
-    }
+      // lưu accessToken vào memory
+      setAccessToken(data.access_token);
 
-    localStorage.setItem("token", payload.access_token);
-    localStorage.setItem("userId", payload.user.id);
-    localStorage.setItem("fullName", payload.user.fullName);
-    localStorage.setItem("universityId", payload.user.universityId);
+      // decode role
+      const decoded = parseJwt(data.access_token);
+      const resolvedRole =
+        decoded?.role || data.user?.role || "STUDENT";
 
-    switch (payload.user.role) {
-      case "ADMIN":
-        onLogin("admin");
-        break;
-      case "OPERATOR":
-        onLogin("operator");
-        break;
-      default:
-        onLogin("student");
+      if (data.user) {
+        localStorage.setItem("fullName", data.user.fullName || "");
+        localStorage.setItem("universityId", data.user.universityId || "");
+      }
+
+      switch (resolvedRole.toUpperCase()) {
+        case "ADMIN":
+          onLogin("admin");
+          break;
+        case "OPERATOR":
+          onLogin("operator");
+          break;
+        case "GUEST":
+          onLogin("guest");
+          break;
+        default:
+          onLogin("student");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Lỗi kết nối server!");
     }
   };
 
@@ -73,7 +72,7 @@ export function Login({ onBack, onLogin }: LoginProps) {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
             <SquareParking className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-gray-900 mb-2">He thong Bai Xe Thong Minh</h1>
+          <h1 className="text-gray-900 mb-2">Hệ thống bãi xe thông minh</h1>
           <p className="text-gray-600">HCMUT Smart Parking System</p>
         </div>
 
@@ -86,7 +85,7 @@ export function Login({ onBack, onLogin }: LoginProps) {
         >
           <input
             type="text"
-            placeholder="Ten dang nhap"
+            placeholder="Tên đăng nhập"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600 mb-4"
@@ -94,7 +93,7 @@ export function Login({ onBack, onLogin }: LoginProps) {
 
           <input
             type="password"
-            placeholder="Mat khau"
+            placeholder="Mật khẩu"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
@@ -104,7 +103,7 @@ export function Login({ onBack, onLogin }: LoginProps) {
             type="submit"
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg"
           >
-            Dang nhap
+            Đăng nhập
           </button>
         </form>
 
@@ -112,7 +111,7 @@ export function Login({ onBack, onLogin }: LoginProps) {
           onClick={onBack}
           className="mt-4 hover:underline hover:cursor-pointer hover:text-blue-600"
         >
-          Quay lai
+          Quay lại
         </button>
       </div>
     </div>

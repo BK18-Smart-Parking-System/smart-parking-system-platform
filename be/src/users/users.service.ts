@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { contains } from 'class-validator';
+import { Role } from '../../generated/prisma';
 
 @Injectable()
 export class UsersService {
@@ -54,5 +55,18 @@ export class UsersService {
       select: { debtAmount: true, dueDate: true }
     });
     return user;
+  }
+
+  // Cập nhật role của người dùng
+  async updateRole(id: string, role: Role) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw new NotFoundException(`Không tìm thấy user với id ${id}`);
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { role },
+    });
   }
 }
