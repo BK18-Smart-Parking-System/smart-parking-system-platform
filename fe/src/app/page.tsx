@@ -55,7 +55,9 @@ export default function Home() {
       }
     };
 
-    initAuth();
+    if (!document.cookie.includes("refreshToken")) {
+      initAuth();
+    }
   }, []);
 
   const handleLogin = (role: string) => {

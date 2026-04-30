@@ -311,7 +311,8 @@ export function EntryExit() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200">                <th className="text-left py-3 px-4 text-gray-700">Thời gian</th>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-4 text-gray-700">Thời gian</th>
                 <th className="text-left py-3 px-4 text-gray-700">Biển số xe</th>
                 <th className="text-left py-3 px-4 text-gray-700">Card UID</th>
                 <th className="text-left py-3 px-4 text-gray-700">Tên người dùng</th>
