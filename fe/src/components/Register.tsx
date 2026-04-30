@@ -17,15 +17,15 @@ export function Register({ onBack }: { onBack: () => void }) {
 			},
 			body: JSON.stringify({ username, email, password, fullName, role, universityId }),
 		})
-		.then((res) => res.json())
-		.then((data) => {
-			if (data.message === "Đăng ký thành công") {
-				alert("Đăng ký thành công! Vui lòng đăng nhập.");
-				onBack(); // Quay lại trang login sau khi đăng ký thành công
-			} else {
-				alert("Đăng ký thất bại: " + (data.message || "Vui lòng thử lại!"));
-			}
-		})
+			.then((res) => res.json())
+			.then((data) => {
+				if (data.message === "Đăng ký thành công") {
+					alert("Đăng ký thành công! Vui lòng đăng nhập.");
+					onBack(); // Quay lại trang login sau khi đăng ký thành công
+				} else {
+					alert("Đăng ký thất bại: " + (data.message || "Vui lòng thử lại!"));
+				}
+			})
 	};
 
 	return (
@@ -104,7 +104,7 @@ export function Register({ onBack }: { onBack: () => void }) {
 				</form>
 
 				<button onClick={onBack} className="mt-4 hover:underline hover:cursor-pointer hover:text-blue-600">
-					← Quay lại
+					&larr; Quay lại
 				</button>
 			</div>
 		</div>

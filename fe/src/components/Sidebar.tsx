@@ -37,19 +37,19 @@ const menuItems: MenuItem[] = [
     id: "parking-slots",
     label: "Trạng thái ô đỗ",
     icon: <ParkingSquare className="w-5 h-5" />,
-    roles: ["admin", "operator", "student", "guest"],
+    roles: ["admin", "operator"],
   },
-  {
-    id: "profile",
-    label: "Thông tin cá nhân & thẻ",
-    icon: <CreditCard className="w-5 h-5" />,
-    roles: ["admin", "operator", "student", "guest"],
-  },
+  // {
+  //   id: "profile",
+  //   label: "Thông tin cá nhân & thẻ",
+  //   icon: <CreditCard className="w-5 h-5" />,
+  //   roles: ["admin", "operator", "student", "guest"],
+  // },
   {
     id: "payment",
     label: "Thanh toán",
     icon: <CreditCard className="w-5 h-5" />,
-    roles: ["admin", "operator", "student"],
+    roles: ["student"],
   },
   {
     id: "history",
@@ -63,12 +63,12 @@ const menuItems: MenuItem[] = [
     icon: <BarChart3 className="w-5 h-5" />,
     roles: ["admin", "operator"],
   },
-  {
-    id: "iot-alerts",
-    label: "Quản lý sự cố IoT",
-    icon: <AlertTriangle className="w-5 h-5" />,
-    roles: ["admin", "operator"],
-  },
+  // {
+  //   id: "iot-alerts",
+  //   label: "Quản lý sự cố IoT",
+  //   icon: <AlertTriangle className="w-5 h-5" />,
+  //   roles: ["admin", "operator"],
+  // },
   {
     id: "permissions",
     label: "Phân quyền",

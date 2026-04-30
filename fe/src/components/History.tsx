@@ -118,12 +118,14 @@ export function History() {
     const user = localStorage.getItem("user");
     const userId = user ? JSON.parse(user).id : null;
     const universityId = user ? JSON.parse(user).universityId : null;
+    const role = user ? JSON.parse(user).role : null;
     const params = new URLSearchParams();
-
-    if (userId) {
-      params.set("userId", userId);
-    } else if (universityId) {
-      params.set("universityId", universityId);
+    if (role === "STUDENT" || role === "STAFF") {
+      if (userId) {
+        params.set("userId", userId);
+      } else if (universityId) {
+        params.set("universityId", universityId);
+      }
     }
 
     return params.toString();

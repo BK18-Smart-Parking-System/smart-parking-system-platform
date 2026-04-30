@@ -107,7 +107,7 @@ export function Login({ onBack, onLogin }: LoginProps) {
           onClick={onBack}
           className="mt-4 hover:underline hover:cursor-pointer hover:text-blue-600"
         >
-          Quay lại
+          &larr; Quay lại
         </button>
       </div>
     </div>
