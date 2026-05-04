@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { ParkingService } from './parking.service';
-import { ToggleSealSlotDto } from './parking.dto';
+import { ToggleSealSlotDto } from './dto/parking.dto';
 
 @Controller('parking')
 export class ParkingController {

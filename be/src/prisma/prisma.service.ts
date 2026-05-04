@@ -7,6 +7,7 @@ import { PrismaClient } from '../../generated/prisma';
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
     const connectionString = process.env.DATABASE_URL;
+    const isTestRuntime = process.env.NODE_ENV === 'test' || !!process.env.JEST_WORKER_ID;
 
     if (!connectionString) {
       throw new Error('DATABASE_URL is not set');
@@ -25,7 +26,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
     super({
       adapter,
-      log: ['query', 'info', 'warn', 'error'],
+      log: isTestRuntime ? ['warn', 'error'] : ['query', 'info', 'warn', 'error'],
     });
   }
 

@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   ParkingSessionRecordDto,
   ParkingSimulationResponseDto,
-} from './parking.dto';
+} from './dto/parking.dto';
 
 @Injectable()
 export class ParkingService {

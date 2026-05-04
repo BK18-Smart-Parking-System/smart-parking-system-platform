@@ -198,15 +198,15 @@ export function Reports() {
                 dataKey="value"
               >
                 {userDataWithColors.map((entry: any, index: number) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                  <Cell key={`cell-${entry.name ?? "unknown"}-${index}`} fill={entry.color} />
                 ))}
               </Pie>
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
           <div className="mt-4 grid grid-cols-2 gap-4">
-            {userDataWithColors.map((item: any) => (
-              <div key={item.name} className="flex items-center gap-2">
+            {userDataWithColors.map((item: any, index: number) => (
+              <div key={`${item.name ?? "unknown"}-${index}`} className="flex items-center gap-2">
                 <div
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: item.color }}
@@ -220,8 +220,8 @@ export function Reports() {
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-gray-900 mb-4">Tỷ lệ sử dụng theo khu vực</h3>
           <div className="space-y-6 mt-8">
-            {zoneUtilization.map((zone: any) => (
-              <div key={zone.zoneId}>
+            {zoneUtilization.map((zone: any, index: number) => (
+              <div key={`${zone.zoneId ?? zone.zoneName ?? "zone"}-${index}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-gray-900">{zone.zoneName}</span>
                   <span className="text-gray-600">
@@ -265,8 +265,8 @@ export function Reports() {
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-gray-900 mb-4">Trạng thái thanh toán</h3>
           <div className="space-y-4">
-            {paymentStatus.map((status: any) => (
-              <div key={status.status}>
+            {paymentStatus.map((status: any, index: number) => (
+              <div key={`${status.status ?? "unknown"}-${index}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-gray-900">
                     {status.status === "SUCCESS"

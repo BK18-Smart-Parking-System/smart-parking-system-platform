@@ -1,4 +1,4 @@
-import { CardStatus, Role, SessionStatus, SlotStatus } from '../../generated/prisma';
+import { CardStatus, Role, SessionStatus, SlotStatus } from '../../../generated/prisma';
 
 export class ParkingSessionUserDto {
   id!: string;

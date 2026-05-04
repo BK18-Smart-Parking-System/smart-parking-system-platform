@@ -10,7 +10,7 @@ import {
   AlertDto,
   OperatorDashboardDto,
   StaffDashboardDto,
-} from './dashboard.dto';
+} from './dto/dashboard.dto';
 
 @Injectable()
 export class DashboardService {

@@ -10,7 +10,7 @@ import {
   PaymentStatusData,
   RevenueSummaryDto,
   DailyStatisticData,
-} from './reports.dto';
+} from './dto/reports.dto';
 import { Role } from '../../generated/prisma';
 
 @Injectable()

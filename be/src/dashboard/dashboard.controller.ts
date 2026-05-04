@@ -1,8 +1,8 @@
 import { Controller, Get, UseGuards, Request } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { ReportsService } from './reports.service';
-import { AdminDashboardDto, OperatorDashboardDto, StaffDashboardDto } from './dashboard.dto';
-import { ReportsOverviewDto, DetailedReportsDto } from './reports.dto';
+import { AdminDashboardDto, OperatorDashboardDto, StaffDashboardDto } from './dto/dashboard.dto';
+import { ReportsOverviewDto, DetailedReportsDto } from './dto/reports.dto';
 
 @Controller('dashboard')
 export class DashboardController {
