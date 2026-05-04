@@ -22,14 +22,13 @@ export function LoginPage({ onLogin }: { onLogin: (role: string) => void }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-blue-600 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
-            <SquareParking className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center w-24 h-24 bg-blue-600 rounded-full mb-4">
+            <img src="../hcmut.png" alt="Logo" width="60" height="60" />
           </div>
-          <h1 className="text-gray-900 mb-2">Hệ thống Bãi Xe Thông Minh</h1>
-          <p className="text-gray-600">HCMUT Smart Parking System</p>
+          <h1 className="text-gray-900 mb-2">HCMUT Smart Parking System</h1>
         </div>
 
         <div className="space-y-4">
@@ -55,7 +54,7 @@ export function LoginPage({ onLogin }: { onLogin: (role: string) => void }) {
           </div>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-gray-200">
+        {/* <div className="mt-8 pt-6 border-t border-gray-200">
           <p className="text-xs text-gray-500 text-center">
             Demo: Nhấn nút đăng nhập để truy cập hệ thống
           </p>
@@ -88,7 +87,7 @@ export function LoginPage({ onLogin }: { onLogin: (role: string) => void }) {
               </button>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );

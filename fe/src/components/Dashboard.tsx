@@ -1,3 +1,5 @@
+"use client";
+
 import {
   BarChart3,
   Car,
@@ -13,28 +15,61 @@ import {
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { StudentDashboard } from "./StudentDashboard";
 import { useRole } from "../contexts/RoleContext";
+import { useEffect, useState } from "react";
 
-const weekData = [
-  { day: "T2", entries: 145, exits: 142 },
-  { day: "T3", entries: 158, exits: 155 },
-  { day: "T4", entries: 162, exits: 160 },
-  { day: "T5", entries: 178, exits: 175 },
-  { day: "T6", entries: 192, exits: 190 },
-  { day: "T7", entries: 134, exits: 132 },
-  { day: "CN", entries: 98, exits: 96 },
-];
-
-const revenueData = [
-  { day: "T2", amount: 8500 },
-  { day: "T3", amount: 9200 },
-  { day: "T4", amount: 9800 },
-  { day: "T5", amount: 10500 },
-  { day: "T6", amount: 11200 },
-  { day: "T7", amount: 7800 },
-  { day: "CN", amount: 5500 },
-];
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 function AdminDashboard() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch(`${API_BASE_URL}/api/dashboard/admin`);
+        if (!response.ok) throw new Error("Failed to fetch admin dashboard");
+        const data = await response.json();
+        setDashboardData(data);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <p className="text-gray-600">Đang tải dữ liệu...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !dashboardData) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-50 p-6 rounded-xl border border-red-200">
+          <p className="text-red-600">Lỗi: {error || "Không thể tải dữ liệu"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { stats, weekActivity, weekRevenue, zoneStatus, recentTransactions } = dashboardData;
+
+  // Format revenue data for chart
+  const chartWeekRevenue = weekRevenue.map((item: any) => ({
+    ...item,
+    amount: Math.round(item.amount / 1000), // Convert to thousands for display
+  }));
   return (
     <div className="space-y-6">
       <div>
@@ -50,10 +85,12 @@ function AdminDashboard() {
             </div>
             <p className="text-sm text-gray-600">Doanh thu tháng</p>
           </div>
-          <p className="text-gray-900 mb-1">52.0M VNĐ</p>
-          <p className="text-sm text-green-600 flex items-center gap-1">
+          <p className="text-gray-900 mb-1">
+            {(stats.totalRevenue / 1_000_000).toFixed(1)}M VNĐ
+          </p>
+          <p className={`text-sm ${stats.revenueChangePercent >= 0 ? "text-green-600" : "text-red-600"} flex items-center gap-1`}>
             <TrendingUp className="w-4 h-4" />
-            +8.3% so với tháng trước
+            {stats.revenueChangePercent > 0 ? "+" : ""}{stats.revenueChangePercent}% so với tháng trước
           </p>
         </div>
 
@@ -64,10 +101,10 @@ function AdminDashboard() {
             </div>
             <p className="text-sm text-gray-600">Tổng người dùng</p>
           </div>
-          <p className="text-gray-900 mb-1">800</p>
+          <p className="text-gray-900 mb-1">{stats.totalUsers}</p>
           <p className="text-sm text-green-600 flex items-center gap-1">
             <TrendingUp className="w-4 h-4" />
-            +12 người dùng mới
+            +{stats.newUsersThisMonth} người dùng mới
           </p>
         </div>
 
@@ -78,8 +115,10 @@ function AdminDashboard() {
             </div>
             <p className="text-sm text-gray-600">Xe đang đỗ</p>
           </div>
-          <p className="text-gray-900 mb-1">328 / 400</p>
-          <p className="text-sm text-gray-600">Tỷ lệ lấp đầy: 82%</p>
+          <p className="text-gray-900 mb-1">
+            {stats.currentOccupancy} / {stats.totalCapacity}
+          </p>
+          <p className="text-sm text-gray-600">Tỷ lệ lấp đầy: {stats.occupancyPercent}%</p>
         </div>
 
         <div className="bg-white rounded-xl p-6 border border-gray-200">
@@ -89,8 +128,8 @@ function AdminDashboard() {
             </div>
             <p className="text-sm text-gray-600">Lượt xe hôm nay</p>
           </div>
-          <p className="text-gray-900 mb-1">192</p>
-          <p className="text-sm text-gray-600">Đã ra: 187 lượt</p>
+          <p className="text-gray-900 mb-1">{stats.todayEntries}</p>
+          <p className="text-sm text-gray-600">Đã ra: {stats.todayExits} lượt</p>
         </div>
       </div>
 
@@ -98,12 +137,12 @@ function AdminDashboard() {
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-gray-900 mb-4">Doanh thu tuần này</h3>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={revenueData}>
+            <BarChart data={chartWeekRevenue}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="day" />
               <YAxis />
-              <Tooltip />
-              <Bar dataKey="amount" fill="#3b82f6" name="Doanh thu (VNĐ)" />
+              <Tooltip formatter={(value) => `${value}k VNĐ`} />
+              <Bar dataKey="amount" fill="#3b82f6" name="Doanh thu (1k VNĐ)" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -111,7 +150,7 @@ function AdminDashboard() {
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-gray-900 mb-4">Lượt xe ra/vào tuần này</h3>
           <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={weekData}>
+            <LineChart data={weekActivity}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="day" />
               <YAxis />
@@ -132,10 +171,12 @@ function AdminDashboard() {
                 <CheckCircle className="w-5 h-5 text-green-600" />
                 <div>
                   <p className="text-gray-900">Cảm biến</p>
-                  <p className="text-sm text-gray-600">396 / 400 hoạt động</p>
+                  <p className="text-sm text-gray-600">
+                    {stats.totalCapacity} / {stats.totalCapacity} hoạt động
+                  </p>
                 </div>
               </div>
-              <span className="text-green-600">99%</span>
+              <span className="text-green-600">100%</span>
             </div>
             <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
               <div className="flex items-center gap-3">
@@ -163,27 +204,34 @@ function AdminDashboard() {
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-gray-900 mb-4">Cảnh báo & Thông báo</h3>
           <div className="space-y-3">
-            <div className="flex gap-3 p-3 bg-yellow-50 rounded-lg">
-              <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-gray-900">4 cảm biến cần bảo trì</p>
-                <p className="text-sm text-gray-600">Khu C - Kiểm tra trong 24h</p>
-              </div>
-            </div>
-            <div className="flex gap-3 p-3 bg-red-50 rounded-lg">
-              <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-gray-900">15 khoản thanh toán quá hạn</p>
-                <p className="text-sm text-gray-600">Cần gửi thông báo nhắc nhở</p>
-              </div>
-            </div>
-            <div className="flex gap-3 p-3 bg-blue-50 rounded-lg">
-              <Activity className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-gray-900">Khu A gần đầy</p>
-                <p className="text-sm text-gray-600">95% công suất - cần điều phối</p>
-              </div>
-            </div>
+            {zoneStatus
+              .filter((zone: any) => zone.status !== "normal")
+              .map((zone: any) => (
+                <div
+                  key={zone.zoneId}
+                  className={`flex gap-3 p-3 rounded-lg ${
+                    zone.status === "critical"
+                      ? "bg-red-50"
+                      : "bg-yellow-50"
+                  }`}
+                >
+                  <AlertTriangle
+                    className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                      zone.status === "critical"
+                        ? "text-red-600"
+                        : "text-yellow-600"
+                    }`}
+                  />
+                  <div>
+                    <p className="text-gray-900">
+                      {zone.zoneName} ({zone.occupancyPercent}%)
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {zone.currentOccupancy} / {zone.capacity} chỗ
+                    </p>
+                  </div>
+                </div>
+              ))}
           </div>
         </div>
       </div>
@@ -228,6 +276,63 @@ function AdminDashboard() {
 }
 
 function OperatorDashboard() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch(`${API_BASE_URL}/api/dashboard/operator`);
+        if (!response.ok) throw new Error("Failed to fetch operator dashboard");
+        const data = await response.json();
+        setDashboardData(data);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <p className="text-gray-600">Đang tải dữ liệu...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !dashboardData) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-50 p-6 rounded-xl border border-red-200">
+          <p className="text-red-600">Lỗi: {error || "Không thể tải dữ liệu"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const {
+    stats,
+    zoneStatus = [],
+    recentTransactions = [],
+    alerts = [],
+  } = dashboardData;
+
+  const currentOccupancy = stats?.currentOccupancy || 0;
+  const totalCapacity = stats?.totalCapacity || 0;
+  const occupancyPercent = stats?.occupancyPercent || 0;
+  const todayEntries = stats?.todayEntries || 0;
+  const todayExits = stats?.todayExits || 0;
+  const averageParkingDuration = stats?.averageParkingDuration || "N/A";
+
   return (
     <div className="space-y-6">
       <div>
@@ -243,9 +348,11 @@ function OperatorDashboard() {
             </div>
             <p className="text-sm text-gray-600">Xe đang đỗ</p>
           </div>
-          <p className="text-gray-900 mb-1">328 / 400</p>
+          <p className="text-gray-900 mb-1">
+            {currentOccupancy} / {totalCapacity}
+          </p>
           <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-            <div className="bg-blue-600 h-2 rounded-full" style={{ width: "82%" }} />
+            <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${occupancyPercent}%` }} />
           </div>
         </div>
 
@@ -256,8 +363,12 @@ function OperatorDashboard() {
             </div>
             <p className="text-sm text-gray-600">Lượt xe hôm nay</p>
           </div>
-          <p className="text-gray-900 mb-1">192 vào / 187 ra</p>
-          <p className="text-sm text-gray-600">Chênh lệch: +5 xe</p>
+          <p className="text-gray-900 mb-1">
+            {todayEntries} vào / {todayExits} ra
+          </p>
+          <p className="text-sm text-gray-600">
+            Chênh lệch: {todayEntries - todayExits > 0 ? "+" : ""}{todayEntries - todayExits} xe
+          </p>
         </div>
 
         <div className="bg-white rounded-xl p-6 border border-gray-200">
@@ -267,7 +378,7 @@ function OperatorDashboard() {
             </div>
             <p className="text-sm text-gray-600">Trung bình thời gian đỗ</p>
           </div>
-          <p className="text-gray-900 mb-1">3.2 giờ</p>
+          <p className="text-gray-900 mb-1">{averageParkingDuration} giờ</p>
           <p className="text-sm text-gray-600">Tuần này</p>
         </div>
       </div>
@@ -275,76 +386,69 @@ function OperatorDashboard() {
       <div className="bg-white rounded-xl p-6 border border-gray-200">
         <h3 className="text-gray-900 mb-4">Trạng thái ô đỗ theo khu</h3>
         <div className="space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-gray-900">Khu A (Giảng viên)</span>
-              <span className="text-gray-600">95 / 100 (95%)</span>
+          {zoneStatus.map((zone: any) => (
+            <div key={zone.zoneId}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-gray-900">{zone.zoneName}</span>
+                <span className="text-gray-600">
+                  {zone.currentOccupancy} / {zone.capacity} ({zone.occupancyPercent}%)
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div
+                  className={`h-3 rounded-full ${
+                    zone.status === "critical"
+                      ? "bg-red-500"
+                      : zone.status === "warning"
+                      ? "bg-yellow-500"
+                      : "bg-blue-600"
+                  }`}
+                  style={{ width: `${zone.occupancyPercent}%` }}
+                />
+              </div>
+              {zone.status === "critical" && (
+                <p className="text-sm text-red-600 mt-1">⚠ Gần đầy - cần điều phối</p>
+              )}
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
-              <div className="bg-red-500 h-3 rounded-full" style={{ width: "95%" }} />
-            </div>
-            <p className="text-sm text-red-600 mt-1">⚠ Gần đầy - cần điều phối</p>
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-gray-900">Khu B (Sinh viên 1)</span>
-              <span className="text-gray-600">108 / 150 (72%)</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
-              <div className="bg-blue-600 h-3 rounded-full" style={{ width: "72%" }} />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-gray-900">Khu C (Sinh viên 2)</span>
-              <span className="text-gray-600">125 / 150 (83%)</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
-              <div className="bg-blue-600 h-3 rounded-full" style={{ width: "83%" }} />
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-gray-900 mb-4">Hoạt động xe vào ra</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={weekData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="entries" stroke="#3b82f6" strokeWidth={2} name="Xe vào" />
-              <Line type="monotone" dataKey="exits" stroke="#10b981" strokeWidth={2} name="Xe ra" />
-            </LineChart>
-          </ResponsiveContainer>
+          <p className="text-sm text-gray-600">Dữ liệu tuần này được cập nhật tự động</p>
         </div>
 
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-gray-900 mb-4">Cảnh báo & Nhiệm vụ</h3>
           <div className="space-y-3">
-            <div className="flex gap-3 p-3 bg-red-50 rounded-lg border-l-4 border-red-500">
-              <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-gray-900">Khu A gần đầy (95%)</p>
-                <p className="text-sm text-gray-600">Hướng dẫn sinh viên đến Khu B</p>
+            {alerts.slice(0, 3).map((alert: any) => (
+              <div
+                key={alert.id}
+                className={`flex gap-3 p-3 rounded-lg border-l-4 ${
+                  alert.type === "critical"
+                    ? "bg-red-50 border-red-500"
+                    : alert.type === "warning"
+                    ? "bg-yellow-50 border-yellow-500"
+                    : "bg-blue-50 border-blue-500"
+                }`}
+              >
+                <AlertTriangle
+                  className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                    alert.type === "critical"
+                      ? "text-red-600"
+                      : alert.type === "warning"
+                      ? "text-yellow-600"
+                      : "text-blue-600"
+                  }`}
+                />
+                <div>
+                  <p className="text-gray-900">{alert.title}</p>
+                  <p className="text-sm text-gray-600">{alert.description}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex gap-3 p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
-              <Clock className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-gray-900">3 xe gửi quá 12 giờ</p>
-                <p className="text-sm text-gray-600">Cần kiểm tra và liên hệ chủ xe</p>
-              </div>
-            </div>
-            <div className="flex gap-3 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
-              <Activity className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-gray-900">4 cảm biến cần kiểm tra</p>
-                <p className="text-sm text-gray-600">Khu C - vị trí C15, C24, C38, C42</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
@@ -352,22 +456,21 @@ function OperatorDashboard() {
       <div className="bg-white rounded-xl p-6 border border-gray-200">
         <h3 className="text-gray-900 mb-4">Giao dịch gần đây</h3>
         <div className="space-y-3">
-          {[
-            { time: "09:15", plate: "51F-12345", action: "Vào", user: "Nguyễn Văn A", status: "success" },
-            { time: "09:12", plate: "59A-67890", action: "Ra", user: "Trần Thị B", status: "success" },
-            { time: "09:08", plate: "Không đọc được", action: "Vào", user: "Lê Văn C", status: "warning" },
-            { time: "09:05", plate: "51F-22222", action: "Ra", user: "Phạm Thị D", status: "success" },
-          ].map((item, i) => (
+          {recentTransactions.slice(0, 5).map((item: any, i: number) => (
             <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-4">
                 <span className="text-sm text-gray-600 w-12">{item.time}</span>
-                <span className={`px-3 py-1 rounded-full text-sm ${
-                  item.action === "Vào" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
-                }`}>
+                <span
+                  className={`px-3 py-1 rounded-full text-sm ${
+                    item.action === "Vào"
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-green-100 text-green-700"
+                  }`}
+                >
                   {item.action}
                 </span>
-                <span className="text-gray-900">{item.plate}</span>
-                <span className="text-gray-600">{item.user}</span>
+                <span className="text-gray-900">{item.licensePlate}</span>
+                <span className="text-gray-600">{item.userName}</span>
               </div>
               {item.status === "success" ? (
                 <CheckCircle className="w-5 h-5 text-green-600" />

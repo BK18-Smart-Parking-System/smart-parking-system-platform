@@ -103,8 +103,8 @@ export function Sidebar({
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen">
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-            <ParkingSquare className="w-6 h-6 text-white" />
+          <div className="w-10 h-10  rounded-lg flex items-center justify-center">
+            <img src= "../hcmut.png" alt="Logo" />
           </div>
           <div>
             <h2 className="text-gray-900">HCMUT</h2>
