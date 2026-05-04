@@ -1,29 +1,70 @@
+"use client";
+
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { TrendingUp, Users, DollarSign, Activity, Download } from "lucide-react";
+import { useEffect, useState } from "react";
 
-const monthlyData = [
-  { month: "T1", revenue: 42000, entries: 820, exits: 815 },
-  { month: "T2", revenue: 38000, entries: 750, exits: 748 },
-  { month: "T3", revenue: 45000, entries: 890, exits: 885 },
-  { month: "T4", revenue: 48000, entries: 920, exits: 918 },
-  { month: "T5", revenue: 52000, entries: 1050, exits: 1048 },
-  { month: "T6", revenue: 47000, entries: 930, exits: 928 },
-];
-
-const userTypeData = [
-  { name: "Sinh viên", value: 450, color: "#3b82f6" },
-  { name: "Giảng viên", value: 180, color: "#10b981" },
-  { name: "Cán bộ", value: 120, color: "#8b5cf6" },
-  { name: "Khách", value: 50, color: "#f59e0b" },
-];
-
-const zoneUsage = [
-  { zone: "Khu A", usage: 85, capacity: 100 },
-  { zone: "Khu B", usage: 72, capacity: 150 },
-  { zone: "Khu C", usage: 91, capacity: 150 },
-];
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export function Reports() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch(`${API_BASE_URL}/api/dashboard/reports/overview`);
+        if (!response.ok) throw new Error("Failed to fetch reports");
+        const reportData = await response.json();
+        setData(reportData);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <p className="text-gray-600">Đang tải báo cáo...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-50 p-6 rounded-xl border border-red-200">
+          <p className="text-red-600">Lỗi: {error || "Không thể tải báo cáo"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { monthlyRevenue, userDistribution, zoneUtilization, peakHours, paymentStatus, revenueSummary } = data;
+
+  // Format revenue for pie chart (add colors)
+  const userDataWithColors = userDistribution.map((user: any, idx: number) => ({
+    ...user,
+    color: ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444"][idx % 5],
+  }));
+
+  // Format peak hours for chart
+  const peakHoursForChart = peakHours.map((hour: any) => ({
+    hour: `${hour.hour}:00`,
+    entries: hour.entries,
+    exits: hour.exits,
+  }));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -47,10 +88,12 @@ export function Reports() {
             </div>
             <p className="text-sm text-gray-600">Doanh thu tháng</p>
           </div>
-          <p className="text-gray-900 mb-1">52.0M VNĐ</p>
-          <p className="text-sm text-green-600 flex items-center gap-1">
+          <p className="text-gray-900 mb-1">
+            {(revenueSummary.totalMonthly / 1_000_000).toFixed(1)}M VNĐ
+          </p>
+          <p className={`text-sm ${revenueSummary.changePercent >= 0 ? "text-green-600" : "text-red-600"} flex items-center gap-1`}>
             <TrendingUp className="w-4 h-4" />
-            +8.3% so với tháng trước
+            {revenueSummary.changePercent > 0 ? "+" : ""}{revenueSummary.changePercent}% so với tháng trước
           </p>
         </div>
 
@@ -61,10 +104,12 @@ export function Reports() {
             </div>
             <p className="text-sm text-gray-600">Tổng người dùng</p>
           </div>
-          <p className="text-gray-900 mb-1">800</p>
+          <p className="text-gray-900 mb-1">
+            {userDistribution.reduce((sum: number, u: any) => sum + u.value, 0)}
+          </p>
           <p className="text-sm text-green-600 flex items-center gap-1">
             <TrendingUp className="w-4 h-4" />
-            +12 người dùng mới
+            {userDistribution.length} loại người dùng
           </p>
         </div>
 
@@ -73,13 +118,12 @@ export function Reports() {
             <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
               <Activity className="w-5 h-5 text-purple-600" />
             </div>
-            <p className="text-sm text-gray-600">Lượt xe tháng</p>
+            <p className="text-sm text-gray-600">Doanh thu trung bình/ngày</p>
           </div>
-          <p className="text-gray-900 mb-1">1,050</p>
-          <p className="text-sm text-green-600 flex items-center gap-1">
-            <TrendingUp className="w-4 h-4" />
-            +5.2% so với tháng trước
+          <p className="text-gray-900 mb-1">
+            {(revenueSummary.averageDaily / 1_000).toFixed(0)}k VNĐ
           </p>
+          <p className="text-sm text-gray-600">Tháng này</p>
         </div>
 
         <div className="bg-white rounded-xl p-6 border border-gray-200">
@@ -87,13 +131,12 @@ export function Reports() {
             <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
               <Activity className="w-5 h-5 text-orange-600" />
             </div>
-            <p className="text-sm text-gray-600">Tỷ lệ lấp đầy TB</p>
+            <p className="text-sm text-gray-600">Doanh thu năm</p>
           </div>
-          <p className="text-gray-900 mb-1">82.3%</p>
-          <p className="text-sm text-green-600 flex items-center gap-1">
-            <TrendingUp className="w-4 h-4" />
-            +3.1% so với tháng trước
+          <p className="text-gray-900 mb-1">
+            {(revenueSummary.totalYearly / 1_000_000).toFixed(0)}M VNĐ
           </p>
+          <p className="text-sm text-gray-600">Ước tính</p>
         </div>
       </div>
 
@@ -101,12 +144,12 @@ export function Reports() {
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-gray-900 mb-4">Doanh thu 6 tháng</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={monthlyData}>
+            <BarChart data={monthlyRevenue}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip />
-              <Bar dataKey="revenue" fill="#3b82f6" name="Doanh thu (VNĐ)" />
+              <Tooltip formatter={(value) => `${(value as number / 1000).toFixed(0)}k VNĐ`} />
+              <Bar dataKey="revenue" fill="#3b82f6" name="Doanh thu" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -114,7 +157,7 @@ export function Reports() {
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-gray-900 mb-4">Lượt xe ra/vào 6 tháng</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={monthlyData}>
+            <LineChart data={monthlyRevenue}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" />
               <YAxis />
@@ -145,7 +188,7 @@ export function Reports() {
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
-                data={userTypeData}
+                data={userDataWithColors}
                 cx="50%"
                 cy="50%"
                 labelLine={false}
@@ -154,7 +197,7 @@ export function Reports() {
                 fill="#8884d8"
                 dataKey="value"
               >
-                {userTypeData.map((entry, index) => (
+                {userDataWithColors.map((entry: any, index: number) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
@@ -162,7 +205,7 @@ export function Reports() {
             </PieChart>
           </ResponsiveContainer>
           <div className="mt-4 grid grid-cols-2 gap-4">
-            {userTypeData.map((item) => (
+            {userDataWithColors.map((item: any) => (
               <div key={item.name} className="flex items-center gap-2">
                 <div
                   className="w-3 h-3 rounded-full"
@@ -177,18 +220,24 @@ export function Reports() {
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-gray-900 mb-4">Tỷ lệ sử dụng theo khu vực</h3>
           <div className="space-y-6 mt-8">
-            {zoneUsage.map((zone) => (
-              <div key={zone.zone}>
+            {zoneUtilization.map((zone: any) => (
+              <div key={zone.zoneId}>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-900">{zone.zone}</span>
+                  <span className="text-gray-900">{zone.zoneName}</span>
                   <span className="text-gray-600">
-                    {zone.usage}/{zone.capacity} ({((zone.usage / zone.capacity) * 100).toFixed(0)}%)
+                    {zone.usage}/{zone.capacity} ({zone.utilizationPercent}%)
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div
-                    className="bg-blue-600 h-3 rounded-full transition-all"
-                    style={{ width: `${(zone.usage / zone.capacity) * 100}%` }}
+                    className={`h-3 rounded-full transition-all ${
+                      zone.utilizationPercent >= 95
+                        ? "bg-red-500"
+                        : zone.utilizationPercent >= 80
+                        ? "bg-yellow-500"
+                        : "bg-blue-600"
+                    }`}
+                    style={{ width: `${zone.utilizationPercent}%` }}
                   />
                 </div>
               </div>
@@ -197,39 +246,57 @@ export function Reports() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl p-6 border border-gray-200">
-        <h3 className="text-gray-900 mb-4">Trạng thái hạ tầng IoT</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1">Cảm biến hoạt động</p>
-            <p className="text-gray-900">396 / 400</p>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div className="bg-green-600 h-2 rounded-full" style={{ width: "99%" }} />
-            </div>
-          </div>
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1">Gateway online</p>
-            <p className="text-gray-900">3 / 3</p>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div className="bg-green-600 h-2 rounded-full" style={{ width: "100%" }} />
-            </div>
-          </div>
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1">Camera hoạt động</p>
-            <p className="text-gray-900">4 / 4</p>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div className="bg-green-600 h-2 rounded-full" style={{ width: "100%" }} />
-            </div>
-          </div>
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1">Bảng LED hoạt động</p>
-            <p className="text-gray-900">2 / 2</p>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div className="bg-green-600 h-2 rounded-full" style={{ width: "100%" }} />
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl p-6 border border-gray-200">
+          <h3 className="text-gray-900 mb-4">Giờ cao điểm (7 ngày gần đây)</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={peakHoursForChart}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="hour" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="entries" fill="#3b82f6" name="Xe vào" />
+              <Bar dataKey="exits" fill="#10b981" name="Xe ra" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 border border-gray-200">
+          <h3 className="text-gray-900 mb-4">Trạng thái thanh toán</h3>
+          <div className="space-y-4">
+            {paymentStatus.map((status: any) => (
+              <div key={status.status}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-900">
+                    {status.status === "SUCCESS"
+                      ? "Thành công"
+                      : status.status === "PENDING"
+                      ? "Đang chờ"
+                      : status.status === "FAILED"
+                      ? "Thất bại"
+                      : "Quá hạn"}
+                  </span>
+                  <span className="text-gray-600">{status.count} ({status.percentage}%)</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full ${
+                      status.status === "SUCCESS"
+                        ? "bg-green-600"
+                        : status.status === "PENDING"
+                        ? "bg-yellow-600"
+                        : "bg-red-600"
+                    }`}
+                    style={{ width: `${status.percentage}%` }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
     </div>
   );
 }
+
