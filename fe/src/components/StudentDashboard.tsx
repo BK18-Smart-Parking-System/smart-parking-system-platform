@@ -128,8 +128,10 @@ export function StudentDashboard() {
       return "";
     }
 
-    const userId = localStorage.getItem("userId");
-    const universityId = localStorage.getItem("universityId");
+    const user = localStorage.getItem("user");
+
+    const userId = user ? JSON.parse(user).id : null;
+    const universityId = user ? JSON.parse(user).universityId : null;
     const params = new URLSearchParams();
 
     if (userId) {
