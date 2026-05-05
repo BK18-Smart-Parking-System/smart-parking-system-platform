@@ -180,10 +180,12 @@ export function StudentDashboard() {
     if (typeof window === "undefined") {
       return;
     }
+    
+    const user = localStorage.getItem("user");
 
     setLocalProfile({
-      fullName: localStorage.getItem("fullName") || "Sinh viên",
-      universityId: localStorage.getItem("universityId") || "N/A",
+      fullName: user ? JSON.parse(user).fullName : "Sinh viên",
+      universityId: user ? JSON.parse(user).universityId : "N/A",
     });
   }, []);
 

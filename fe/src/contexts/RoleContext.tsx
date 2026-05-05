@@ -26,7 +26,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const [userRole, setUserRole] = useState<string>("student");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = document.cookie.split('; ').find(row => row.startsWith('refreshToken='));
     if (token) {
       const decoded = parseJwt(token);
       if (decoded && decoded.role) {
