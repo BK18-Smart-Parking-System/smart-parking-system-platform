@@ -10,6 +10,7 @@ describe('ParkingController + ParkingSlotController (e2e)', () => {
 
   const parkingServiceMock = {
     getSessions: jest.fn(),
+    getTransactionHistory: jest.fn(),
     getZonesWithSlots: jest.fn(),
     simulateRandomCheckIn: jest.fn(),
     simulateRandomCheckOut: jest.fn(),
@@ -46,6 +47,19 @@ describe('ParkingController + ParkingSlotController (e2e)', () => {
 
     expect(res.body).toEqual([{ id: 'ps1' }]);
     expect(parkingServiceMock.getSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it('GET /parking/transaction-history - should return transaction history', async () => {
+    parkingServiceMock.getTransactionHistory.mockResolvedValue({ items: [] });
+
+    const res = await request(app.getHttpServer())
+      .get('/parking/transaction-history?page=1')
+      .expect(200);
+
+    expect(res.body).toEqual({ items: [] });
+    expect(parkingServiceMock.getTransactionHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ page: '1' }),
+    );
   });
 
   it('GET /parking/zones-with-slots - should return zones with slots', async () => {

@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   CardStatus,
+  PaymentMethod,
+  PaymentStatus,
+  Role,
   SessionStatus,
   SlotStatus,
 } from '../../generated/prisma';
@@ -13,6 +16,12 @@ import {
 @Injectable()
 export class ParkingService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly defaultPricing = {
+    basePrice: 3000,
+    pricePerHour: 5000,
+    maxDailyPrice: 30000,
+  };
 
   async getZonesWithSlots() {
     const zones = await this.prisma.parkingZone.findMany({
@@ -50,6 +59,113 @@ export class ParkingService {
     });
 
     return sessions.map((session) => this.mapSession(session));
+  }
+
+  async getTransactionHistory(query: any) {
+    const page = Math.max(Number(query.page || 1), 1);
+    const pageSize = Math.min(Math.max(Number(query.pageSize || 10), 1), 100);
+    const skip = (page - 1) * pageSize;
+
+    const whereClause: any = {};
+
+    if (query.plate) {
+      whereClause.OR = [
+        { licensePlateIn: { contains: query.plate, mode: 'insensitive' } },
+        { licensePlateOut: { contains: query.plate, mode: 'insensitive' } },
+      ];
+    }
+
+    if (query.startDate || query.endDate) {
+      whereClause.checkinTime = {};
+      if (query.startDate) {
+        whereClause.checkinTime.gte = new Date(query.startDate);
+      }
+      if (query.endDate) {
+        const endDate = new Date(query.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        whereClause.checkinTime.lte = endDate;
+      }
+    }
+
+    const [totalItems, pagedSessions, allFilteredSessions] = await Promise.all([
+      this.prisma.parkingSession.count({ where: whereClause }),
+      this.prisma.parkingSession.findMany({
+        where: whereClause,
+        include: {
+          card: {
+            include: {
+              user: true,
+            },
+          },
+          zone: true,
+          slot: true,
+          payment: true,
+        },
+        orderBy: {
+          checkinTime: 'desc',
+        },
+        skip,
+        take: pageSize,
+      }),
+      this.prisma.parkingSession.findMany({
+        where: whereClause,
+        select: {
+          checkinTime: true,
+          checkoutTime: true,
+          calculatedFee: true,
+        },
+      }),
+    ]);
+
+    const totalMinutes = allFilteredSessions.reduce(
+      (sum, session) =>
+        sum + this.getDurationMinutes(session.checkinTime, session.checkoutTime),
+      0,
+    );
+    const totalFee = allFilteredSessions.reduce(
+      (sum, session) => sum + Number(session.calculatedFee ?? 0),
+      0,
+    );
+    const totalSessions = allFilteredSessions.length;
+
+    return {
+      items: pagedSessions.map((session) => ({
+        id: session.id,
+        date: session.checkinTime,
+        plate: session.licensePlateOut ?? session.licensePlateIn ?? 'Unrecognized',
+        checkinTime: session.checkinTime,
+        checkoutTime: session.checkoutTime,
+        durationMinutes: this.getDurationMinutes(
+          session.checkinTime,
+          session.checkoutTime,
+        ),
+        fee: Number(session.calculatedFee ?? 0),
+        status: session.status,
+        customerName:
+          session.card.user?.fullName ??
+          (session.card.isGuestCard ? 'Guest customer' : 'Unknown customer'),
+        customerRole: session.card.user?.role ?? Role.GUEST,
+        cardUid: session.card.uid,
+        paymentMethod: session.payment?.method ?? null,
+        paymentStatus: session.payment?.status ?? null,
+        zoneName: session.zone?.name ?? null,
+        slotName: session.slot?.name ?? session.slot?.sensorCode ?? null,
+      })),
+      pagination: {
+        page,
+        pageSize,
+        totalItems,
+        totalPages: Math.max(Math.ceil(totalItems / pageSize), 1),
+      },
+      summary: {
+        totalSessions,
+        totalMinutes,
+        totalFee: Math.round(totalFee),
+        averageMinutes: totalSessions > 0 ? Math.round(totalMinutes / totalSessions) : 0,
+        averageFeePerSession:
+          totalSessions > 0 ? Math.round(totalFee / totalSessions) : 0,
+      },
+    };
   }
 
   async simulateRandomCheckIn(): Promise<ParkingSimulationResponseDto> {
@@ -155,6 +271,18 @@ export class ParkingService {
           zoneId: true,
           slotId: true,
           licensePlateIn: true,
+          checkinTime: true,
+          card: {
+            select: {
+              isGuestCard: true,
+              user: {
+                select: {
+                  id: true,
+                  role: true,
+                },
+              },
+            },
+          },
         },
       });
 
@@ -165,12 +293,23 @@ export class ParkingService {
       }
 
       const checkoutTime = new Date();
+      const role = activeSession.card.isGuestCard
+        ? Role.GUEST
+        : activeSession.card.user?.role ?? Role.GUEST;
+      const calculatedFee = await this.calculateFee(
+        tx,
+        role,
+        activeSession.checkinTime,
+        checkoutTime,
+      );
+
       const updatedSession = await tx.parkingSession.update({
         where: { id: activeSession.id },
         data: {
           status: SessionStatus.CLOSED,
           checkoutTime,
           licensePlateOut: activeSession.licensePlateIn,
+          calculatedFee,
         },
         include: {
           card: {
@@ -182,6 +321,25 @@ export class ParkingService {
           slot: true,
         },
       });
+
+      if (activeSession.card.isGuestCard && calculatedFee > 0) {
+        const payment = await tx.paymentTransaction.create({
+          data: {
+            amount: calculatedFee,
+            status: PaymentStatus.SUCCESS,
+            method: PaymentMethod.CASH,
+            userId: null,
+            paidAt: checkoutTime,
+          },
+        });
+
+        await tx.parkingSession.update({
+          where: { id: activeSession.id },
+          data: {
+            paymentId: payment.id,
+          },
+        });
+      }
 
       if (activeSession.slotId) {
         await tx.parkingSlot.update({
@@ -305,6 +463,52 @@ export class ParkingService {
     }
 
     return sensorCode;
+  }
+
+  private async calculateFee(
+    tx: any,
+    role: Role,
+    checkinTime: Date,
+    checkoutTime: Date,
+  ) {
+    const pricingPolicy = await tx.pricingPolicy.findFirst({
+      where: {
+        role,
+        effectiveFrom: {
+          lte: checkoutTime,
+        },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: checkoutTime } }],
+      },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+
+    const basePrice = Number(pricingPolicy?.basePrice ?? this.defaultPricing.basePrice);
+    const pricePerHour = Number(
+      pricingPolicy?.pricePerHour ?? this.defaultPricing.pricePerHour,
+    );
+    const maxDailyPrice = Number(
+      pricingPolicy?.maxDailyPrice ?? this.defaultPricing.maxDailyPrice,
+    );
+
+    if (pricingPolicy?.billingCycle === 'FREE') {
+      return 0;
+    }
+
+    const durationMs = checkoutTime.getTime() - checkinTime.getTime();
+    const durationHours = Math.max(1, Math.ceil(durationMs / (1000 * 60 * 60)));
+    const rawFee = basePrice + durationHours * pricePerHour;
+
+    if (maxDailyPrice > 0) {
+      return Math.min(rawFee, maxDailyPrice);
+    }
+
+    return rawFee;
+  }
+
+  private getDurationMinutes(checkinTime: Date, checkoutTime: Date | null) {
+    const end = checkoutTime ?? new Date();
+    const durationMs = end.getTime() - checkinTime.getTime();
+    return Math.max(Math.round(durationMs / (1000 * 60)), 0);
   }
 
   private generateLicensePlate(): string {

@@ -8,9 +8,10 @@ import { SettingsModule } from './settings/settings.module';
 import { StudentDashboardModule } from './student-dashboard/student-dashboard.module';
 import { UsersModule } from './users/users.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { GuestCardModule } from './guest-card/guest-card.module';
 
 @Module({
-  imports: [UsersModule, AuthModule, PrismaModule, SettingsModule, ParkingModule, StudentDashboardModule, DashboardModule],
+  imports: [UsersModule, AuthModule, PrismaModule, SettingsModule, ParkingModule, StudentDashboardModule, DashboardModule, GuestCardModule],
   controllers: [AppController],
   providers: [AppService],
 })

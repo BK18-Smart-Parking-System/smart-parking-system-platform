@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ParkingService } from './parking.service';
 import { ToggleSealSlotDto } from './dto/parking.dto';
 
@@ -9,6 +9,11 @@ export class ParkingController {
   @Get('sessions')
   async getSessions() {
     return this.parkingService.getSessions();
+  }
+
+  @Get('transaction-history')
+  async getTransactionHistory(@Query() query: Record<string, string>) {
+    return this.parkingService.getTransactionHistory(query);
   }
 
   @Get('zones-with-slots')

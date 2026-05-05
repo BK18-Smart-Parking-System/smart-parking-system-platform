@@ -2,6 +2,7 @@ import { Calendar, Download, FileText, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useRole } from "../contexts/RoleContext";
 
 const API_BASE_URL_CANDIDATES = [
   process.env.NEXT_PUBLIC_API_URL
@@ -16,6 +17,11 @@ type ParkingHistoryItem = {
   durationMinutes: number;
   fee: number;
   status: string;
+  customerName?: string;
+  customerRole?: string;
+  cardUid?: string;
+  paymentMethod?: string | null;
+  paymentStatus?: string | null;
 };
 
 type ParkingHistoryResponse = {
@@ -65,19 +71,29 @@ async function requestJson<T>(path: string): Promise<T> {
   throw lastError ?? new Error("Không thể kết nối API lịch sử gửi xe.");
 }
 
-function mapSessionStatus(status: string) {
-  switch (status) {
-    case "PARKING":
-      return "Đang đỗ";
-    case "PAID":
-      return "Đã thanh toán";
-    case "PENDING_PAYMENT":
-      return "Chờ thanh toán";
-    case "CLOSED":
-      return "Đã rời bãi";
-    default:
-      return status;
+function mapTransactionStatus(item: ParkingHistoryItem) {
+  if (item.paymentStatus === "SUCCESS" || item.status === "PAID") {
+    return "Đã thanh toán";
   }
+
+  if (
+    item.paymentStatus === "PENDING" ||
+    item.status === "PENDING_PAYMENT" ||
+    item.status === "CLOSED" ||
+    item.status === "PARKING"
+  ) {
+    return "Chờ thanh toán";
+  }
+
+  return "Lỗi thanh toán";
+}
+
+function normalizeVietnameseText(value: string | number | null | undefined) {
+  return String(value ?? "")
+    .replace(/Đ/g, "D")
+    .replace(/đ/g, "d")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function formatDate(value: string | null) {
@@ -101,7 +117,12 @@ function formatCurrency(value: number) {
   return `${value.toLocaleString("vi-VN")} VNĐ`;
 }
 
+function formatCurrencyForPdf(value: number) {
+  return `${value.toLocaleString("vi-VN")} VND`;
+}
+
 export function History() {
+  const { userRole } = useRole();
   const [plate, setPlate] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -109,6 +130,7 @@ export function History() {
   const [historyData, setHistoryData] = useState<ParkingHistoryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isManagementView = userRole === "admin" || userRole === "operator";
 
   const identityQuery = useMemo(() => {
     if (typeof window === "undefined") {
@@ -163,8 +185,11 @@ export function History() {
 
     try {
       const query = buildQueryString();
+      const endpoint = isManagementView
+        ? "/api/parking/transaction-history"
+        : "/api/student/parking-history";
       const data = await requestJson<ParkingHistoryResponse>(
-        `/api/student/parking-history?${query}`,
+        `${endpoint}?${query}`,
       );
       setHistoryData(data);
     } catch (loadError) {
@@ -174,7 +199,7 @@ export function History() {
     } finally {
       setLoading(false);
     }
-  }, [buildQueryString]);
+  }, [buildQueryString, isManagementView]);
 
   useEffect(() => {
     void loadHistory();
@@ -189,26 +214,46 @@ export function History() {
 
     const doc = new jsPDF();
     doc.setFontSize(14);
-    doc.text("Lich su gui xe", 14, 15);
+    const pdfText = (value: string | number | null | undefined) =>
+      isManagementView ? normalizeVietnameseText(value) : String(value ?? "");
+    doc.text(pdfText("Transaction history"), 14, 15);
 
     autoTable(doc, {
       startY: 22,
-      head: [["Ngay", "Bien so", "Gio vao", "Gio ra", "Thoi gian gui", "Phi", "Trang thai"]],
+      head: [
+        (isManagementView
+          ? ["Date", "Customer", "Card UID", "Plate", "Check-in", "Check-out", "Fee", "Status"]
+          : ["Date", "Plate", "Check-in", "Check-out", "Duration", "Fee", "Status"]
+        ).map(pdfText),
+      ],
       body: items.map((item) => [
-        formatDate(item.date),
-        item.plate,
-        formatDate(item.checkinTime),
-        formatDate(item.checkoutTime),
-        formatDuration(item.durationMinutes),
-        formatCurrency(item.fee),
-        mapSessionStatus(item.status),
+        ...(isManagementView
+          ? [
+              pdfText(formatDate(item.date)),
+              pdfText(item.customerName ?? "N/A"),
+              pdfText(item.cardUid ?? "N/A"),
+              pdfText(item.plate),
+              pdfText(formatDate(item.checkinTime)),
+              pdfText(formatDate(item.checkoutTime)),
+              pdfText(formatCurrencyForPdf(item.fee)),
+              pdfText(mapTransactionStatus(item)),
+            ]
+          : [
+              formatDate(item.date),
+              item.plate,
+              formatDate(item.checkinTime),
+              formatDate(item.checkoutTime),
+              formatDuration(item.durationMinutes),
+              formatCurrency(item.fee),
+              mapTransactionStatus(item),
+            ]),
       ]),
       styles: {
         fontSize: 9,
       },
     });
 
-    doc.save("lich-su-gui-xe.pdf");
+    doc.save("transaction-history.pdf");
   };
 
   const summary = historyData?.summary;
@@ -217,9 +262,9 @@ export function History() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-gray-900 mb-2">Lịch sử gửi xe</h1>
+        <h1 className="text-gray-900 mb-2">Transaction history</h1>
         <p className="text-gray-600">
-          Tra cứu và kiểm tra lịch sử các lượt gửi xe của bạn.
+          Tra cứu và kiểm tra lịch sử giao dịch.
         </p>
       </div>
 
@@ -287,6 +332,12 @@ export function History() {
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left py-3 px-4 text-gray-700">Ngày</th>
+                {isManagementView && (
+                  <>
+                    <th className="text-left py-3 px-4 text-gray-700">Khách hàng</th>
+                    <th className="text-left py-3 px-4 text-gray-700">Card UID</th>
+                  </>
+                )}
                 <th className="text-left py-3 px-4 text-gray-700">Biển số</th>
                 <th className="text-left py-3 px-4 text-gray-700">Giờ vào</th>
                 <th className="text-left py-3 px-4 text-gray-700">Giờ ra</th>
@@ -298,26 +349,38 @@ export function History() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-6 px-4 text-center text-gray-500">
-                    Đang tải lịch sử gửi xe...
+                  <td colSpan={isManagementView ? 9 : 7} className="py-6 px-4 text-center text-gray-500">
+                    Đang tải transaction history...
                   </td>
                 </tr>
               ) : (historyData?.items.length ?? 0) === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-6 px-4 text-center text-gray-500">
-                    Không tìm thấy lịch sử gửi xe phù hợp.
+                  <td colSpan={isManagementView ? 9 : 7} className="py-6 px-4 text-center text-gray-500">
+                    Không tìm thấy transaction history phù hợp.
                   </td>
                 </tr>
               ) : (
                 historyData?.items.map((record) => (
                   <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-4 px-4 text-gray-900">{formatDate(record.date)}</td>
+                    {isManagementView && (
+                      <>
+                        <td className="py-4 px-4 text-gray-900">
+                          {record.customerName ?? "N/A"}
+                        </td>
+                        <td className="py-4 px-4 text-gray-600">
+                          {record.cardUid ?? "N/A"}
+                        </td>
+                      </>
+                    )}
                     <td className="py-4 px-4 text-gray-900">{record.plate}</td>
                     <td className="py-4 px-4 text-gray-600">{formatDate(record.checkinTime)}</td>
                     <td className="py-4 px-4 text-gray-600">{formatDate(record.checkoutTime)}</td>
                     <td className="py-4 px-4 text-gray-600">{formatDuration(record.durationMinutes)}</td>
                     <td className="py-4 px-4 text-gray-900">{formatCurrency(record.fee)}</td>
-                    <td className="py-4 px-4 text-gray-700">{mapSessionStatus(record.status)}</td>
+                    <td className="py-4 px-4 text-gray-700">
+                      {mapTransactionStatus(record)}
+                    </td>
                   </tr>
                 ))
               )}
@@ -354,7 +417,7 @@ export function History() {
         {(historyData?.items.length ?? 0) === 0 && !loading && (
           <div className="text-center py-12">
             <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">Không tìm thấy dữ liệu lịch sử gửi xe.</p>
+            <p className="text-gray-600">Không tìm thấy dữ liệu transaction history.</p>
           </div>
         )}
       </div>
